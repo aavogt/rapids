@@ -1,0 +1,23 @@
+synopsis: waterfall-cad wrapper
+
+license: LGPL-2.1-only
+
+dependencies:
+  - base
+  - waterfall-cad >= 0.6.2.1
+  - linear
+  - process
+  - lens
+  - directory
+  - filepath
+  - transformers
+  - opencascade-hs
+  - inline-c-cpp
+  - inline-c
+  - resourcet
+  - containers
+  - template-haskell
+
+library:
+  source-dirs:
+    - lib

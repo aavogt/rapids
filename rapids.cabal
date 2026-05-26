@@ -1,0 +1,40 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.39.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           rapids
+version:        0.0.0
+synopsis:       waterfall-cad wrapper
+license:        LGPL-2.1-only
+build-type:     Simple
+
+library
+  exposed-modules:
+      InlineOCCT
+      Rapids
+      Rapids.Color
+      Rapids.Path
+  other-modules:
+      Paths_rapids
+  autogen-modules:
+      Paths_rapids
+  hs-source-dirs:
+      lib
+  build-depends:
+      base
+    , containers
+    , directory
+    , filepath
+    , inline-c
+    , inline-c-cpp
+    , lens
+    , linear
+    , opencascade-hs
+    , process
+    , resourcet
+    , template-haskell
+    , transformers
+    , waterfall-cad >=0.6.2.1
+  default-language: Haskell2010
