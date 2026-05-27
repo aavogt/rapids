@@ -14,6 +14,7 @@ library
   exposed-modules:
       InlineOCCT
       Rapids
+      Rapids.BoolOp
       Rapids.Color
       Rapids.Path
   other-modules:
