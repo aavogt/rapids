@@ -9,12 +9,11 @@ import Language.C.Inline.Context
 import Language.C.Inline.Cpp
 import Language.C.Inline.HaskellIdentifier
 import Language.C.Types as C
-import Language.C.Types.Parse (CIdentifier (..))
 import Language.Haskell.TH as TH
 import OpenCascade.GP.Types
 import OpenCascade.TopoDS.Types
-import Waterfall.Internal.ToOpenCascade (v3ToDir, v3ToPnt, v3ToVertex)
 import Waterfall.Internal.Solid
+import Waterfall.Internal.ToOpenCascade (v3ToDir, v3ToPnt, v3ToVertex)
 
 getHsVariable :: String -> HaskellIdentifier -> TH.ExpQ
 getHsVariable err s = do
@@ -41,8 +40,10 @@ tt =
       (f "Solid", [t|Ptr Shape|])
     ]
 
+f :: String -> TypeSpecifier
 f str = TypeName $ either (error "tt") id $ cIdentifierFromString True str
 
+p :: String -> C.Type i
 p str = Ptr [] (TypeSpecifier mempty (f str))
 
 aq :: AntiQuoters

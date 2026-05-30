@@ -1,78 +1,84 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE BlockArguments #-}
 
 -- | cascade, waterfall, rapids
 -- simplify waterfall-cad expressions by complicating the types and type errors
-module Rapids (
-  module Rapids,
-  module Rapids.Color,
-  module Rapids.Path,
-  module Linear,
-  module Control.Lens,
-  module Waterfall) where
+module Rapids
+  ( module Rapids,
+    -- module Rapids.Color,
+    module Rapids.IniVal,
+    module Rapids.Path,
+    module Linear,
+    module Control.Lens,
+    module Waterfall,
+  )
+where
 
-import Rapids.Path
-import Rapids.Color
+import Control.Applicative
 import Control.Lens hiding (prism)
+import Data.IORef
 import Data.Maybe
-import Data.Proxy (Proxy (..))
-import GHC.TypeLits
 import Linear hiding (rotate)
-import Waterfall hiding (mirror, rotate, scale, translate,
-  -- Waterfall.TwoD.Path2D
-  -- Waterfall.Path
-  -- sort of Waterfall.Path.Common
-  appendPath,
-  appendSegment,
-  line3D,
-  lineTo3D,
-  lineRelative3D,
-  arcVia3D,
-  arcViaTo3D,
-  arcViaRelative3D,
-  bezier3D,
-  bezierTo3D,
-  bezierRelative3D,
-  pathFrom3D,
-  pathFromTo3D,
-  pathEndpoints3D,
-  closeLoop3D,
-  reversePath3D,
-  splice3D,
-  splitPath3D,
-  pathLength3D,
-  takePathFraction3D,
-  appendPath2D,
-  appendSegment2D,
-  arc,
-  arcTo,
-  arcRelative,
-  repeatLooping,
-  line2D,
-  lineTo2D,
-  lineRelative2D,
-  arcVia2D,
-  arcViaTo2D,
-  arcViaRelative2D,
-  bezier2D,
-  bezierTo2D,
-  bezierRelative2D,
-  pathFrom2D,
-  pathFromTo2D,
-  pathEndpoints2D,
-  closeLoop2D,
-  reversePath2D,
-  splice2D,
-  splitPath2D,
-  pathLength2D,
-  takePathFraction2D)
-import qualified Waterfall as W
-
+-- import Rapids.Color
+import Rapids.Path
 import System.Directory
 import System.FilePath
-import Data.IORef
-import Control.Applicative
+import Rapids.IniVal
+import Waterfall hiding
+  ( appendPath,
+    appendPath2D,
+    appendSegment,
+    appendSegment2D,
+    arc,
+    arcRelative,
+    arcTo,
+    arcVia2D,
+    arcVia3D,
+    arcViaRelative2D,
+    arcViaRelative3D,
+    arcViaTo2D,
+    arcViaTo3D,
+    bezier2D,
+    bezier3D,
+    bezierRelative2D,
+    bezierRelative3D,
+    bezierTo2D,
+    bezierTo3D,
+    closeLoop2D,
+    closeLoop3D,
+    difference,
+    intersection,
+    line2D,
+    line3D,
+    lineRelative2D,
+    lineRelative3D,
+    lineTo2D,
+    lineTo3D,
+    mirror,
+    pathEndpoints2D,
+    pathEndpoints3D,
+    pathFrom2D,
+    pathFrom3D,
+    pathFromTo2D,
+    pathFromTo3D,
+    pathLength2D,
+    pathLength3D,
+    repeatLooping,
+    reversePath2D,
+    reversePath3D,
+    rotate,
+    scale,
+    splice2D,
+    splice3D,
+    splitPath2D,
+    splitPath3D,
+    takePathFraction2D,
+    takePathFraction3D,
+    translate,
+    union,
+  )
+import qualified Waterfall as W
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
@@ -80,13 +86,13 @@ import Control.Applicative
 -- so the template needs less renaming
 mkStepWriter :: IO (Solid -> IO FilePath)
 mkStepWriter = do
-    count <- newIORef Nothing
-    prefix <- takeBaseName <$> getCurrentDirectory
-    return \solid -> do
-      count <- atomicModifyIORef count (\a -> (succ <$> a <|> Just 0, a))
-      let out = prefix ++ maybe "" show count ++ ".step"
-      writeSTEP out solid
-      return out
+  count <- newIORef Nothing
+  prefix <- takeBaseName <$> getCurrentDirectory
+  return \solid -> do
+    count <- atomicModifyIORef count (\a -> (succ <$> a <|> Just 0, a))
+    let out = prefix ++ maybe "" show count ++ ".step"
+    writeSTEP out solid
+    return out
 
 -- | `t` is shorthand for 'translate' applied to different objects:
 --
@@ -180,10 +186,10 @@ instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, s ~ Solid, s 
 --
 -- other ideas are minkowski sum
 instance Num Solid where
-  (-) = difference
-  (+) = union
-  (*) = intersection
-  negate = complement
+  (-) = W.difference
+  (+) = W.union
+  (*) = W.intersection
+  negate = W.complement
   fromInteger n = scale (fromInteger n) unitCube
 
   -- \| reflect if the 'centerOfMass' is behind the plane centered at the origin with normal (1,1,1)

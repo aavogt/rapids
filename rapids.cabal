@@ -14,8 +14,7 @@ library
   exposed-modules:
       InlineOCCT
       Rapids
-      Rapids.BoolOp
-      Rapids.Color
+      Rapids.IniVal
       Rapids.Path
   other-modules:
       Paths_rapids
@@ -23,8 +22,10 @@ library
       Paths_rapids
   hs-source-dirs:
       lib
+  ghc-options: -Wall
   build-depends:
-      base
+      StateVar
+    , base
     , containers
     , directory
     , filepath
@@ -36,6 +37,7 @@ library
     , process
     , resourcet
     , template-haskell
+    , text
     , transformers
     , waterfall-cad >=0.6.2.1
   default-language: Haskell2010
