@@ -1,6 +1,12 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 -- | cascade, waterfall, rapids
 -- simplify waterfall-cad expressions by complicating the types and type errors
@@ -81,6 +87,7 @@ import Waterfall hiding
   )
 import qualified Waterfall as W
 import Control.Monad
+import GHC.TypeLits
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
@@ -240,3 +247,36 @@ loophv hvdims = do
   closeLoop2D
  `execState` (0, mempty)
  & snd
+
+class PadN (NArgs a) a => Pad a where pad :: a
+instance PadN (NArgs a) a => Pad a where pad = padN
+
+class (NArgs a ~ n) => PadN n a where
+  padN :: a
+
+type family NArgs f where
+  NArgs (a -> b) = 1 + NArgs b
+  NArgs f = 0
+
+-- should this sweep (line 0 (V3 0 0 eps) <> ?)
+instance (Double ~ double, Shape ~ shape, Solid ~ solid) => PadN 2 (double -> shape -> solid) where
+  padN z = sweep (line 0 (V3 0 0 z))
+
+instance (Double ~ double, Double ~ taper, Shape ~ shape, Solid ~ solid) =>  PadN 3 (double -> double -> shape -> solid) where
+  padN z taperFrac = padN (V3 z 0 0) taperFrac
+
+instance (Double ~ double, Shape ~ shape, Solid ~ solid) => PadN 2 (V3 double -> shape -> solid) where
+  padN xyz = sweep (line 0 xyz)
+
+instance (PadN 5 (d -> d -> d -> taper -> shape -> solid), Double ~ d, Double ~ taper, Shape ~ shape, Solid ~ solid) => PadN 3 (V3 d -> taper -> shape -> solid) where
+  padN (V3 x y z) taperFrac shape = padN x y z taperFrac shape
+
+instance (Double ~ x, Double ~ y, Double ~ z, Double ~ taper, Shape ~ shape, Solid ~ solid) => PadN 4 (x -> y -> z -> shape -> solid) where
+  padN x y z = sweep (line 0 (V3 x y z))
+
+instance (Double ~ x, Double ~ z, Double ~ y, Double ~ taper, Shape ~ shape, Solid ~ solid) => PadN 5 (x -> y -> z -> taper -> shape -> solid) where
+  padN x y z taperFrac shape = unions [ loft [p0, p]
+         | q <- shapePaths shape,
+           let p0 = fromPath2D (uScale2D taperFrac q),
+           let p = translate x y z p0 ]
+
