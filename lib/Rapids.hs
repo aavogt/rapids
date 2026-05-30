@@ -80,6 +80,7 @@ import Waterfall hiding
     scale2D,
   )
 import qualified Waterfall as W
+import Control.Monad
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
@@ -224,3 +225,18 @@ instance Num Solid where
   signum = aabbToSolid . fromMaybe (error msg) . axisAlignedBoundingBox
     where
       msg = "Rapids.signum :: Waterfall.Solid->Waterfall.Solid: can't compute axisAlignedBoundingBox"
+
+rectangle :: Double -> Double -> Shape
+rectangle x y = scale2D x y unitSquare
+
+-- | `[h,v,h,v,h,v] -> Path2D`
+-- with a final edge added to make a loop
+--
+-- rectangle above could be
+-- > rectangle x y = makeShape (loophv [x, y, -x])
+loophv :: [Double] -> Path2D
+loophv hvdims = do
+  zipWithM_ (\f d -> lineRelative2D (f d)) (cycle [\x -> V2 x 0, \y -> V2 0 y]) hvdims
+  closeLoop2D
+ `execState` (0, mempty)
+ & snd
