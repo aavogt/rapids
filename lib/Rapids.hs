@@ -77,6 +77,7 @@ import Waterfall hiding
     takePathFraction3D,
     translate,
     union,
+    scale2D,
   )
 import qualified Waterfall as W
 
@@ -147,40 +148,58 @@ instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, a ~ Solid, a' ~ a) => Rotat
 class Scale a where
   scale :: a
 
-instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, a ~ Solid, a' ~ a) => Scale (E v -> amt -> a -> a') where
+instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) => Scale (E v -> amt -> a -> a') where
   scale (E e) amt a = W.scale (1 & e .~ amt) a
 
-instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, a ~ Solid, a' ~ a) => Scale (x -> y -> z -> a -> a') where
+instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Transformable a, a' ~ a) => Scale (x -> y -> z -> a -> a') where
   scale x y z a = W.scale (V3 x y z) a
 
-instance {-# OVERLAPPABLE #-} (a ~ Solid, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
+instance {-# OVERLAPPABLE #-} (Transformable a, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
   scale xyz a = W.scale (V3 xyz xyz xyz) a
+
+class Scale2D a where
+  scale2D :: a
+
+instance {-# INCOHERENT #-} (v ~ V2, amt ~ Double, Transformable2D a, a' ~ a) => Scale2D (E v -> amt -> a -> a') where
+  scale2D (E e) amt a = W.scale2D (1 & e .~ amt) a
+
+instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, Transformable2D a, a' ~ a) => Scale2D (x -> y -> a -> a') where
+  scale2D x y a = W.scale2D (V2 x y) a
+
+instance {-# OVERLAPPABLE #-} (Transformable2D a, a' ~ a, Double ~ d) => Scale2D (d -> a -> a') where
+  scale2D xy a = W.scale2D (V2 xy xy) a
 
 -- | just the mirror image
 class Mirror a where
   mirror :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, s ~ Solid, s' ~ s) => Mirror (V3 d -> s -> s') where
+instance {-# INCOHERENT #-} (d ~ Double, Transformable s, s' ~ s) => Mirror (V3 d -> s -> s') where
   mirror v a = W.mirror v a
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, s ~ Solid, s' ~ s) => Mirror (E v -> s -> s') where
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Transformable s, s' ~ s) => Mirror (E v -> s -> s') where
   mirror (E e) a = W.mirror (0 & e .~ 1) a
 
-instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, s ~ Solid, s ~ s') => Mirror (x -> y -> z -> s -> s') where
+instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Transformable s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
   mirror x y z a = W.mirror (V3 x y z) a
 
--- | both the original and the image
+-- | both the original and the image as in freecad's PartDesign::Mirrored
 class Mirrored a where
   mirrored :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, s ~ Solid, s' ~ s) => Mirrored (V3 d -> s -> s') where
+instance {-# INCOHERENT #-} (d ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (V3 d -> s -> s') where
   mirrored v a = W.mirror v a + a
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, s ~ Solid, s' ~ s) => Mirrored (E v -> s -> s') where
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (E v -> s -> s') where
   mirrored (E e) a = W.mirror (0 & e .~ 1) a + a
 
-instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, s ~ Solid, s ~ s') => Mirrored (x -> y -> z -> s -> s') where
+instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Num s, Transformable s, s ~ s') => Mirrored (x -> y -> z -> s -> s') where
   mirrored x y z a = W.mirror (V3 x y z) a + a
+
+-- | needed for `instance Mirrored (_ -> Path -> Path)`
+instance Num Path where
+  (+) = (<>)
+  -- (-) could remove points, but maybe it needs to defer evaluation ie. store a sign bool (Bool, Path)
+  -- because x + (0 - x) is supposed to work?
 
 -- won't be upstreamed maybe Joe will depend on `algebra`
 --
