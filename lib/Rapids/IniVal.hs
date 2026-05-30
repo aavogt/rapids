@@ -46,11 +46,27 @@ lookupOneE fieldName = do
               [ lift <$> readMaybe @Int str,
                 lift <$> readMaybe @Double str
               ]
--- | read ./config.ini for example [iniVal| first_layer_height |]
+
+tupE1 [x] = x
+tupE1 xs = tupE xs
+
+-- | read ./config.ini for example as expressions:
+--
+-- > [iniVal| first_layer_height |] :: Double
+-- > [iniVal| first_layer_height layer_height |] :: (Double,Double)
+--
+-- or as a top-level declaration:
+--
+-- > [iniVal| extrusion_width layer_height |]
+-- ==>
+-- extrusion_width = 0.4
+-- layer_height = 0.2
+--
+-- if it parses as an Int it'll be Int
 iniVal :: QuasiQuoter
 iniVal =
   QuasiQuoter
-    { quoteExp = listE . map lookupOneE . words,
+    { quoteExp = tupE1 . map lookupOneE . words,
       quoteDec = \fieldNames -> do
         sequence [ valD (varP n) b []
           | f <- words fieldNames,
