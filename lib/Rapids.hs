@@ -111,21 +111,21 @@ mkStepWriter = do
 class Translate a where
   translate :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, a ~ Solid, a' ~ a) => Translate (d -> e -> f -> a -> a') where
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, Transformable a, a' ~ a) => Translate (d -> e -> f -> a -> a') where
   translate x y z a = W.translate (V3 x y z) a
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, a ~ Solid, a ~ a') => Translate (V3 d -> a -> a') where
+instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable a, a ~ a') => Translate (V3 d -> a -> a') where
   translate v a = W.translate v a
 
 -- | Linear defines 'ex' 'ey' 'ez'
 -- t 'ex' 3 solid
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, a ~ Solid, a' ~ a) => Translate (E v -> amt -> a -> a') where
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) => Translate (E v -> amt -> a -> a') where
   translate (E e) amt a = W.translate (0 & e .~ amt) a
 
 class Rotate a where
   rotate :: a
 
-instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, a ~ Solid, a' ~ a) => Rotate (x -> y -> z -> ang -> a -> a') where
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, Transformable a, a' ~ a) => Rotate (x -> y -> z -> ang -> a -> a') where
   rotate x y z ang a = W.rotate (V3 x y z) ang a
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, ang ~ Double, a ~ Solid, a' ~ a) => Rotate (V3 d -> ang -> a -> a') where
