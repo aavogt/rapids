@@ -153,13 +153,13 @@ class Rotate a where
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, Transformable a, a' ~ a) => Rotate (x -> y -> z -> ang -> a -> a') where
   rotate x y z ang a = W.rotate (V3 x y z) ang a
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, ang ~ Double, a ~ Solid, a' ~ a) => Rotate (V3 d -> ang -> a -> a') where
+instance {-# OVERLAPPABLE #-} (d ~ Double, ang ~ Double, Transformable a, a' ~ a) => Rotate (V3 d -> ang -> a -> a') where
   rotate v ang a = W.rotate v ang a
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, a ~ Solid, a' ~ a) => Rotate (Quaternion d -> a -> a') where
+instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable a, a' ~ a) => Rotate (Quaternion d -> a -> a') where
   rotate q a = W.rotate (q ^. _yzw) (acos (q ^. _x)) a
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, a ~ Solid, a' ~ a) => Rotate (E v -> ang -> a -> a') where
+instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, Transformable a, a' ~ a) => Rotate (E v -> ang -> a -> a') where
   rotate (E e) ang a = W.rotate (0 & e .~ 1) ang a
 
 -- | Rotate by degrees around an axis specified in one of these ways:
@@ -172,16 +172,16 @@ class RotateBy a where
   -- > rotateDeg ey deg
   rotateDeg :: a
 
-instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, a ~ Solid, a' ~ a) => RotateBy (x -> y -> z -> deg -> a -> a') where
+instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, Transformable a, a' ~ a) => RotateBy (x -> y -> z -> deg -> a -> a') where
   rotateDeg x y z p a = W.rotate (V3 x y z) (p * pi / 180) a
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, a ~ Solid, a' ~ a) => RotateBy (V3 d -> deg -> a -> a') where
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, Transformable a, a' ~ a) => RotateBy (V3 d -> deg -> a -> a') where
   rotateDeg v p a = W.rotate v (p * pi / 180) a
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, a ~ Solid, a' ~ a) => RotateBy (Quaternion d -> deg -> a -> a') where
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, Transformable a, a' ~ a) => RotateBy (Quaternion d -> deg -> a -> a') where
   rotateDeg q p = W.rotate (q ^. _yzw) (p * pi / 180)
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, a ~ Solid, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
+instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, Transformable a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
   rotateDeg (E e) p a = W.rotate (0 & e .~ 1) (p * pi / 180) a
 
 -- | Scale x y z axes
