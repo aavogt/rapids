@@ -107,8 +107,6 @@ import Waterfall hiding
     translate2D,
   )
 import qualified Waterfall as W
-import Control.Monad
-import GHC.TypeLits
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
