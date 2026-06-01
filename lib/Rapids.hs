@@ -339,8 +339,6 @@ instance (Double ~ x, Double ~ y, Double ~ z, Double ~ taper, Shape ~ shape, Sol
   padN x y z = sweep (line 0 (V3 x y z))
 
 instance (Double ~ x, Double ~ z, Double ~ y, Double ~ taper, Shape ~ shape, Solid ~ solid) => PadN 5 (x -> y -> z -> taper -> shape -> solid) where
-  padN x y z taperFrac shape = unions [ loft [p0, p]
+  padN x y z taperFrac shape = unions [ loft [fromPath2D q, p]
          | q <- shapePaths shape,
-           let p0 = fromPath2D (uScale2D taperFrac q),
-           let p = translate x y z p0 ]
-
+           let p = translate x y z (fromPath2D (uScale2D taperFrac q)) ]
