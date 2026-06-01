@@ -300,14 +300,15 @@ rectangle x y = scale2D x y unitSquare
 -- rectangle above could be
 -- > rectangle x y = makeShape (loophv [x, y, -x])
 loophv :: [Double] -> Path2D
-loophv hvdims = do
-  zipWithM_ (\f d -> lineRelative2D (f d)) (cycle [\x -> V2 x 0, \y -> V2 0 y]) hvdims
-  closeLoop2D
- `execState` (0, mempty)
- & snd
+loophv hvdims =
+  do
+    zipWithM_ (\f d -> lineRelative2D (f d)) (cycle [\x -> V2 x 0, \y -> V2 0 y]) hvdims
+    closeLoop2D
+    `execState` (0, mempty)
+    & snd
 
 -- | pad is like freecad PartDesign::Pad. It sweeps a shape, or lofts a uScale2D version
-class PadN (NArgs a) a => Pad a where
+class (PadN (NArgs a) a) => Pad a where
   pad :: a
   -- ^ pad expressions of type 'Shape' -> 'Solid'
   --
@@ -317,7 +318,8 @@ class PadN (NArgs a) a => Pad a where
   -- > pad x y z taperFrac
   -- > pad v
   -- > pad v taperFrac
-instance PadN (NArgs a) a => Pad a where pad = padN
+
+instance (PadN (NArgs a) a) => Pad a where pad = padN
 
 class (NArgs a ~ n) => PadN n a where
   padN :: a
