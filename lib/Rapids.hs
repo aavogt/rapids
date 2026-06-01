@@ -93,10 +93,12 @@ import Waterfall hiding
     reversePath3D,
     rotate,
     scale,
+    scale2D,
     splice2D,
     splice3D,
     splitPath2D,
     splitPath3D,
+    sweep,
     takePathFraction2D,
     takePathFraction3D,
     translate,
@@ -330,22 +332,47 @@ type family NArgs f where
   NArgs f = 0
 
 -- should this sweep (line 0 (V3 0 0 eps) <> ?)
-instance (Double ~ double, Shape ~ shape, Solid ~ solid) => PadN 2 (double -> shape -> solid) where
-  padN z = sweep (line 0 (V3 0 0 z))
+instance {-# INCOHERENT #-} (Double ~ double, ToShape shape, Solid ~ solid) => PadN 2 (double -> shape -> solid) where
+  padN z = W.sweep (line 0 (V3 0 0 z)) . toShape
 
-instance (Double ~ double, Double ~ taper, Shape ~ shape, Solid ~ solid) =>  PadN 3 (double -> double -> shape -> solid) where
-  padN z taperFrac = padN (V3 z 0 0) taperFrac
+instance (Double ~ double, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 3 (double -> double -> shape -> solid) where
+  padN z taperFrac = padN (V3 z 0 0) taperFrac . toShape
 
-instance (Double ~ double, Shape ~ shape, Solid ~ solid) => PadN 2 (V3 double -> shape -> solid) where
-  padN xyz = sweep (line 0 xyz)
+instance {-# OVERLAPPABLE #-} (Double ~ double, ToShape shape, Solid ~ solid) => PadN 2 (V3 double -> shape -> solid) where
+  padN xyz = W.sweep (line 0 xyz) . toShape
 
-instance (PadN 5 (d -> d -> d -> taper -> shape -> solid), Double ~ d, Double ~ taper, Shape ~ shape, Solid ~ solid) => PadN 3 (V3 d -> taper -> shape -> solid) where
+instance (PadN 5 (d -> d -> d -> taper -> shape -> solid), Double ~ d, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 3 (V3 d -> taper -> shape -> solid) where
   padN (V3 x y z) taperFrac shape = padN x y z taperFrac shape
 
-instance (Double ~ x, Double ~ y, Double ~ z, Double ~ taper, Shape ~ shape, Solid ~ solid) => PadN 4 (x -> y -> z -> shape -> solid) where
-  padN x y z = sweep (line 0 (V3 x y z))
+instance (Double ~ x, Double ~ y, Double ~ z, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 4 (x -> y -> z -> shape -> solid) where
+  padN x y z = W.sweep (line 0 (V3 x y z)) . toShape
 
-instance (Double ~ x, Double ~ z, Double ~ y, Double ~ taper, Shape ~ shape, Solid ~ solid) => PadN 5 (x -> y -> z -> taper -> shape -> solid) where
-  padN x y z taperFrac shape = unions [ loft [fromPath2D q, p]
-         | q <- shapePaths shape,
-           let p = translate x y z (fromPath2D (uScale2D taperFrac q)) ]
+instance (Double ~ x, Double ~ z, Double ~ y, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 5 (x -> y -> z -> taper -> shape -> solid) where
+  padN x y z taperFrac shape =
+    unions
+      [ loft [fromPath2D q, p]
+        | q <- shapePaths (toShape shape),
+          let p = translate x y z (fromPath2D (uScale2D taperFrac q))
+      ]
+
+class ToShape a where toShape :: a -> Shape
+
+class ToPath a where toPath :: a -> Path
+
+instance ToShape Shape where toShape = id
+
+instance ToShape Path2D where toShape = makeShape
+
+instance (Double ~ d) => ToShape [V2 d] where toShape abspts = makeShape $ mconcat [line a b :: Path2D | a : b : _ <- tails abspts]
+
+instance (Double ~ d) => ToPath [V2 d] where toPath abspts = mconcat [line (V3 a b 0) (V3 c d 0) | V2 a b : V2 c d : _ <- tails abspts]
+
+instance (Double ~ d) => ToPath [V3 d] where toPath abspts = mconcat [line a b | a : b : _ <- tails abspts]
+
+sweep path shape = W.sweep (toPath path) (toShape shape)
+
+instance Num Shape where
+  (+) = W.union
+  (-) = W.difference
+  (*) = W.intersection
+  fromInteger i = rectangle (fromInteger i) (fromInteger i)
