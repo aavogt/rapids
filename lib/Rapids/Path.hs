@@ -1,6 +1,19 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleInstances #-}
 
+-- |  Waterfall suggests
+--
+-- 'pathFrom' :: Monoid path => point -> [point -> (point, path)] -> path 
+--
+-- here is another take on that with the transformers package "Control.Monad.Trans.State".'State' type
+-- so that:
+--
+-- > pathFrom p0 [line3D v, line3D w]
+--
+-- > do
+-- >     line3D v
+-- >     line3D w
+-- >  `execState` p0 & snd
 module Rapids.Path
   ( module Rapids.Path,
 

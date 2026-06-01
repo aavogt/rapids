@@ -10,6 +10,20 @@
 
 -- | cascade, waterfall, rapids
 -- simplify waterfall-cad expressions by complicating the types and type errors
+--
+-- Examples use
+--
+-- > x, y, z :: Double
+-- > v :: V3 Double
+--
+-- pragmatic instance Num Solid
+--
+--  - + union
+--  - - cut
+--  - * intersection
+--  - abs applies 'mirror (V3 1 1 1)' to move the 'centerOfMass'
+--  - fromInteger cube
+--  - signum = 'aabbToSolid' . 'axisAlignedBoundingBox' :: 'Solid' -> Solid
 module Rapids
   ( module Rapids,
     -- module Rapids.Color,
@@ -103,12 +117,15 @@ mkStepWriter = do
     writeSTEP out solid
     return out
 
--- | `t` is shorthand for 'translate' applied to different objects:
---
--- > v = V3 x y z
--- > bxyz = t x y z b
--- > bxyz = t v b -- equivalent
+-- | Translate a 'Transformable' ( 'Path'/'Solid'/'V3' Double) in a direction
 class Translate a where
+  -- | @translate@ exressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
+  --
+  -- > translate x y z
+  -- > translate (v :: V3 Double)
+  -- > translate ex x -- along x axis
+  -- > translate ey y -- along y
+  -- > translate ez z -- along z
   translate :: a
 
 instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, Transformable a, a' ~ a) => Translate (d -> e -> f -> a -> a') where
@@ -118,11 +135,19 @@ instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable a, a ~ a') => Translate
   translate v a = W.translate v a
 
 -- | Linear defines 'ex' 'ey' 'ez'
--- t 'ex' 3 solid
+--
+-- > transform 'ex' 3 solid
 instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) => Translate (E v -> amt -> a -> a') where
   translate (E e) amt a = W.translate (0 & e .~ amt) a
 
+-- | Rotate a 'Transformable' by radians around an axis specified in one of these ways:
 class Rotate a where
+  -- | @rotate@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
+  --
+  -- > rotate x y z rad
+  -- > rotate v     rad
+  -- > rotate q     rad
+  -- > rotate ex    rad
   rotate :: a
 
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, Transformable a, a' ~ a) => Rotate (x -> y -> z -> ang -> a -> a') where
@@ -137,8 +162,14 @@ instance {-# OVERLAPPABLE #-} (d ~ Double, a ~ Solid, a' ~ a) => Rotate (Quatern
 instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, a ~ Solid, a' ~ a) => Rotate (E v -> ang -> a -> a') where
   rotate (E e) ang a = W.rotate (0 & e .~ 1) ang a
 
--- not too happy about this one... because the degrees should be at the end?
+-- | Rotate by degrees around an axis specified in one of these ways:
 class RotateBy a where
+  -- | @rotateDeg@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
+  --
+  -- > rotateDeg x y z deg
+  -- > rotateDeg v3 deg
+  -- > rotateDeg q  deg
+  -- > rotateDeg ey deg
   rotateDeg :: a
 
 instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, a ~ Solid, a' ~ a) => RotateBy (x -> y -> z -> deg -> a -> a') where
@@ -153,7 +184,14 @@ instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, a ~ Solid, a' ~ a) => R
 instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, a ~ Solid, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
   rotateDeg (E e) p a = W.rotate (0 & e .~ 1) (p * pi / 180) a
 
+-- | Scale x y z axes
 class Scale a where
+  -- | @scale@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
+  --
+  -- > scale v3
+  -- > scale x y z
+  -- > scale ex x
+  -- > scale ey y
   scale :: a
 
 instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) => Scale (E v -> amt -> a -> a') where
@@ -165,7 +203,14 @@ instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Transformable
 instance {-# OVERLAPPABLE #-} (Transformable a, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
   scale xyz a = W.scale (V3 xyz xyz xyz) a
 
+-- | Scale x y axes
 class Scale2D a where
+  -- | @scale2D@ expressions of type 'Transformable2D' @a => a -> a@ (probably 'Shape' -> 'Shape')
+  --
+  -- > scale2D v2
+  -- > scale2D x y z
+  -- > scale2D ex x
+  -- > scale2D ey y
   scale2D :: a
 
 instance {-# INCOHERENT #-} (v ~ V2, amt ~ Double, Transformable2D a, a' ~ a) => Scale2D (E v -> amt -> a -> a') where
@@ -177,8 +222,15 @@ instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, Transformable2D a, a' ~ a
 instance {-# OVERLAPPABLE #-} (Transformable2D a, a' ~ a, Double ~ d) => Scale2D (d -> a -> a') where
   scale2D xy a = W.scale2D (V2 xy xy) a
 
--- | just the mirror image
+-- | Reflect across a plane through the origin
 class Mirror a where
+  -- | @mirror@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
+  --
+  -- > mirror v3
+  -- > mirror x y z
+  -- > mirror ex x
+  -- > mirror ey y
+  -- > mirror ez z
   mirror :: a
 
 instance {-# INCOHERENT #-} (d ~ Double, Transformable s, s' ~ s) => Mirror (V3 d -> s -> s') where
@@ -190,8 +242,13 @@ instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Transformable s, s' ~ s) =>
 instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Transformable s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
   mirror x y z a = W.mirror (V3 x y z) a
 
--- | both the original and the image as in freecad's PartDesign::Mirrored
+-- | mirror plus the original both the original and the image as in freecad's PartDesign::Mirrored
 class Mirrored a where
+  -- | @mirrored@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
+  --
+  -- > mirrored v3
+  -- > mirrored x y z
+  -- > mirrored ex x
   mirrored :: a
 
 instance {-# INCOHERENT #-} (d ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (V3 d -> s -> s') where
@@ -209,9 +266,6 @@ instance Num Path where
   -- (-) could remove points, but maybe it needs to defer evaluation ie. store a sign bool (Bool, Path)
   -- because x + (0 - x) is supposed to work?
 
--- won't be upstreamed maybe Joe will depend on `algebra`
---
--- other ideas are minkowski sum
 instance Num Solid where
   (-) = W.difference
   (+) = W.union
@@ -248,7 +302,17 @@ loophv hvdims = do
  `execState` (0, mempty)
  & snd
 
-class PadN (NArgs a) a => Pad a where pad :: a
+-- | pad is like freecad PartDesign::Pad. It sweeps a shape, or lofts a uScale2D version
+class PadN (NArgs a) a => Pad a where
+  pad :: a
+  -- ^ pad expressions of type 'Shape' -> 'Solid'
+  --
+  -- > pad z
+  -- > pad z taperFrac
+  -- > pad x y z
+  -- > pad x y z taperFrac
+  -- > pad v
+  -- > pad v taperFrac
 instance PadN (NArgs a) a => Pad a where pad = padN
 
 class (NArgs a ~ n) => PadN n a where
