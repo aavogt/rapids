@@ -267,8 +267,9 @@ instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Num s, Transf
 -- | needed for `instance Mirrored (_ -> Path -> Path)`
 instance Num Path where
   (+) = (<>)
-  -- (-) could remove points, but maybe it needs to defer evaluation ie. store a sign bool (Bool, Path)
-  -- because x + (0 - x) is supposed to work?
+
+-- (-) could remove points, but maybe it needs to defer evaluation ie. store a sign bool (Bool, Path)
+-- because x + (0 - x) is supposed to work?
 
 instance Num Solid where
   (-) = W.difference
