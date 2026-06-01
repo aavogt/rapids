@@ -1,12 +1,12 @@
 {-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | cascade, waterfall, rapids
 -- simplify waterfall-cad expressions by complicating the types and type errors
@@ -37,14 +37,18 @@ where
 
 import Control.Applicative
 import Control.Lens hiding (prism)
-import Data.IORef
-import Data.Maybe
-import Linear hiding (rotate)
 -- import Rapids.Color
+
+import Control.Monad
+import Data.IORef
+import Data.List (tails)
+import Data.Maybe
+import GHC.TypeLits
+import Linear hiding (rotate)
+import Rapids.IniVal
 import Rapids.Path
 import System.Directory
 import System.FilePath
-import Rapids.IniVal
 import Waterfall hiding
   ( appendPath,
     appendPath2D,
