@@ -150,16 +150,16 @@ instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) =>
 class Translate2D a where
   translate2D :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, Transformable2D a, a' ~ a) => Translate (d -> e -> a -> a') where
-  translate2D x y a = W.translate2D (V3 x y) a
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, Transformable2D a, a' ~ a) => Translate2D (d -> e -> a -> a') where
+  translate2D x y a = W.translate2D (V2 x y) a
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable2D a, a ~ a') => Translate (V2 d -> a -> a') where
+instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable2D a, a ~ a') => Translate2D (V2 d -> a -> a') where
   translate2D v a = W.translate2D v a
 
 -- | Linear defines 'ex' 'ey' 'ez'
 --
 -- > transform 'ex' 3 solid
-instance {-# OVERLAPPABLE #-} (v ~ V2, amt ~ Double, Transformable2D a, a' ~ a) => Translate (E v -> amt -> a -> a') where
+instance {-# OVERLAPPABLE #-} (v ~ V2, amt ~ Double, Transformable2D a, a' ~ a) => Translate2D (E v -> amt -> a -> a') where
   translate2D (E e) amt a = W.translate2D (0 & e .~ amt) a
 
 -- | Rotate a 'Transformable' by radians around an axis specified in one of these ways:
