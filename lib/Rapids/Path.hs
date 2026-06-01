@@ -14,8 +14,11 @@
 -- >     line3D v
 -- >     line3D w
 -- >  `execState` p0 & snd
+--
+-- or execPathState0 to start with mempty/zero/origin
 module Rapids.Path
-  ( module Rapids.Path,
+  ( execPathState0,
+    module Rapids.Path,
 
     -- * reexports
     execState,
@@ -230,3 +233,5 @@ pathLength2D = gets (W.pathLength2D . snd)
 
 takePathFraction2D :: Double -> PathState2 ()
 takePathFraction2D fraction = _2 %= W.takePathFraction2D fraction
+
+execPathState0 cmds = cmds `execState` (0, mempty) & snd
