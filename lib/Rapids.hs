@@ -259,6 +259,19 @@ instance {-# OVERLAPS #-} (vd ~ V3 Double, Transformable s, s' ~ s) => Mirror (v
 instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Transformable s, s' ~ s) => Mirror (E v -> s -> s') where
   mirror (E e) a = W.mirror (0 & e .~ 1) a
 
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', Transformable s, s' ~ s) => Mirror (E v -> E v' -> s -> s') where
+  mirror (E f) (E g) a =
+    let ga = W.mirror (0 & g .~ 1) a
+        fga = W.mirror (0 & f .~ 1) ga
+    in fga
+
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', Transformable s, s' ~ s) => Mirror (E v -> E v' -> E v'' -> s -> s') where
+  mirror (E e) (E f) (E g) a =
+    let ga = W.mirror (0 & g .~ 1) a
+        fga = W.mirror (0 & f .~ 1) ga
+        efga = W.mirror (0 & e .~ 1) fga
+    in efga
+
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Transformable s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
   mirror x y z a = W.mirror (V3 x y z) a
 
@@ -271,10 +284,24 @@ class Mirrored a where
   -- > mirrored ex x
   mirrored :: a
 
-instance {-# OVERLAPS #-} (d ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (V3 d -> s -> s') where
+instance {-# OVERLAPS #-} (vd ~ V3 Double, Num s, Transformable s, s' ~ s) => Mirrored (vd -> s -> s') where
   mirrored v a = W.mirror v a + a
 
-instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (E v -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', Num s, Transformable s, s' ~ s) => Mirrored (E v -> E v' -> s -> s') where
+  mirrored (E f) (E g) a =
+    let ga = W.mirror (0 & g .~ 1) a + a
+        fga = W.mirror (0 & f .~ 1) ga + ga
+    in fga
+
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', Num s, Transformable s, s' ~ s) => Mirrored (E v -> E v' -> E v'' -> s -> s') where
+  mirrored (E e) (E f) (E g) a =
+    let ga = W.mirror (0 & g .~ 1) a + a
+        fga = W.mirror (0 & f .~ 1) ga + ga
+        efga = W.mirror (0 & e .~ 1) fga + fga
+    in efga
+-- can it be recursive?
+
+instance {-# INCOHERENT #-} (v ~ V3, Num s, Transformable s, s' ~ s) => Mirrored (E v -> s -> s') where
   mirrored (E e) a = W.mirror (0 & e .~ 1) a + a
 
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Num s, Transformable s, s ~ s') => Mirrored (x -> y -> z -> s -> s') where
