@@ -352,7 +352,7 @@ loophv hvdims =
     & snd
 
 -- | pad is like freecad PartDesign::Pad. It sweeps a shape, or lofts a uScale2D version
-class (PadN (NArgs a) a) => Pad a where
+class Pad a where
   pad :: a
   -- ^ pad expressions of type 'Shape' -> 'Solid'
   --
@@ -363,33 +363,23 @@ class (PadN (NArgs a) a) => Pad a where
   -- > pad v
   -- > pad v taperFrac
 
-instance (PadN (NArgs a) a) => Pad a where pad = padN
+instance {-# OVERLAPS #-} (Double ~ double, ToShape shape, Solid ~ solid) => Pad (double -> shape -> solid) where
+  pad z = W.sweep (line 0 (V3 0 0 z)) . toShape
 
-class (NArgs a ~ n) => PadN n a where
-  padN :: a
+instance {-# INCOHERENT #-} (Double ~ double, Double ~ taper, ToShape shape, Solid ~ solid) => Pad (double -> taper -> shape -> solid) where
+  pad z taperFrac = pad (V3 0 0 z) taperFrac . toShape
 
-type family NArgs f where
-  NArgs (a -> b) = 1 + NArgs b
-  NArgs f = 0
+instance {-# INCOHERENT #-} (Double ~ double, ToShape shape, Solid ~ solid) => Pad (V3 double -> shape -> solid) where
+  pad xyz = W.sweep (line 0 xyz) . toShape
 
--- should this sweep (line 0 (V3 0 0 eps) <> ?)
-instance {-# INCOHERENT #-} (Double ~ double, ToShape shape, Solid ~ solid) => PadN 2 (double -> shape -> solid) where
-  padN z = W.sweep (line 0 (V3 0 0 z)) . toShape
+instance {-# INCOHERENT #-} (Pad (d -> d -> d -> taper -> shape -> solid), Double ~ d, Double ~ taper, ToShape shape, Solid ~ solid) => Pad (V3 d -> taper -> shape -> solid) where
+  pad (V3 x y z) taperFrac shape = pad x y z taperFrac shape
 
-instance (Double ~ double, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 3 (double -> double -> shape -> solid) where
-  padN z taperFrac = padN (V3 0 0 z) taperFrac . toShape
+instance {-# INCOHERENT #-} (Double ~ x, Double ~ y, Double ~ z, Double ~ taper, ToShape shape, Solid ~ solid) => Pad (x -> y -> z -> shape -> solid) where
+  pad x y z = W.sweep (line 0 (V3 x y z)) . toShape
 
-instance {-# OVERLAPPABLE #-} (Double ~ double, ToShape shape, Solid ~ solid) => PadN 2 (V3 double -> shape -> solid) where
-  padN xyz = W.sweep (line 0 xyz) . toShape
-
-instance (PadN 5 (d -> d -> d -> taper -> shape -> solid), Double ~ d, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 3 (V3 d -> taper -> shape -> solid) where
-  padN (V3 x y z) taperFrac shape = padN x y z taperFrac shape
-
-instance (Double ~ x, Double ~ y, Double ~ z, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 4 (x -> y -> z -> shape -> solid) where
-  padN x y z = W.sweep (line 0 (V3 x y z)) . toShape
-
-instance (Double ~ x, Double ~ z, Double ~ y, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 5 (x -> y -> z -> taper -> shape -> solid) where
-  padN x y z taperFrac shape =
+instance {-# INCOHERENT #-} (Double ~ x, Double ~ z, Double ~ y, Double ~ taper, ToShape shape, Solid ~ solid) => Pad (x -> y -> z -> taper -> shape -> solid) where
+  pad x y z taperFrac shape =
     unions
       [ loft [fromPath2D q, p]
         | q <- shapePaths (toShape shape),
