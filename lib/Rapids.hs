@@ -217,10 +217,10 @@ class Scale a where
 instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) => Scale (E v -> amt -> a -> a') where
   scale (E e) amt a = W.scale (1 & e .~ amt) a
 
-instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Transformable a, a' ~ a) => Scale (x -> y -> z -> a -> a') where
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Transformable a, a' ~ a) => Scale (x -> y -> z -> a -> a') where
   scale x y z a = W.scale (V3 x y z) a
 
-instance {-# OVERLAPPABLE #-} (Transformable a, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
+instance {-# OVERLAPS #-} (Transformable a, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
   scale xyz a = W.scale (V3 xyz xyz xyz) a
 
 -- | Scale x y axes
@@ -253,13 +253,13 @@ class Mirror a where
   -- > mirror ez z
   mirror :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, Transformable s, s' ~ s) => Mirror (V3 d -> s -> s') where
+instance {-# OVERLAPS #-} (vd ~ V3 Double, Transformable s, s' ~ s) => Mirror (vd -> s -> s') where
   mirror v a = W.mirror v a
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Transformable s, s' ~ s) => Mirror (E v -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Transformable s, s' ~ s) => Mirror (E v -> s -> s') where
   mirror (E e) a = W.mirror (0 & e .~ 1) a
 
-instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Transformable s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Transformable s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
   mirror x y z a = W.mirror (V3 x y z) a
 
 -- | mirror plus the original both the original and the image as in freecad's PartDesign::Mirrored
@@ -271,13 +271,13 @@ class Mirrored a where
   -- > mirrored ex x
   mirrored :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (V3 d -> s -> s') where
+instance {-# OVERLAPS #-} (d ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (V3 d -> s -> s') where
   mirrored v a = W.mirror v a + a
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (E v -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Num s, Transformable s, s' ~ s) => Mirrored (E v -> s -> s') where
   mirrored (E e) a = W.mirror (0 & e .~ 1) a + a
 
-instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, z ~ Double, Num s, Transformable s, s ~ s') => Mirrored (x -> y -> z -> s -> s') where
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Num s, Transformable s, s ~ s') => Mirrored (x -> y -> z -> s -> s') where
   mirrored x y z a = W.mirror (V3 x y z) a + a
 
 -- | needed for `instance Mirrored (_ -> Path -> Path)`
