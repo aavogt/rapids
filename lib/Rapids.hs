@@ -377,7 +377,7 @@ instance {-# INCOHERENT #-} (Double ~ double, ToShape shape, Solid ~ solid) => P
   padN z = W.sweep (line 0 (V3 0 0 z)) . toShape
 
 instance (Double ~ double, Double ~ taper, ToShape shape, Solid ~ solid) => PadN 3 (double -> double -> shape -> solid) where
-  padN z taperFrac = padN (V3 z 0 0) taperFrac . toShape
+  padN z taperFrac = padN (V3 0 0 z) taperFrac . toShape
 
 instance {-# OVERLAPPABLE #-} (Double ~ double, ToShape shape, Solid ~ solid) => PadN 2 (V3 double -> shape -> solid) where
   padN xyz = W.sweep (line 0 xyz) . toShape
