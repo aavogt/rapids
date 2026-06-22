@@ -16,13 +16,13 @@ library
       Rapids
       Rapids.IniVal
       Rapids.Path
+      Rapids.Section
   other-modules:
       Paths_rapids
   autogen-modules:
       Paths_rapids
   hs-source-dirs:
       lib
-  ghc-options: -Wall
   build-depends:
       StateVar
     , base
@@ -35,6 +35,7 @@ library
     , linear
     , opencascade-hs
     , process
+    , random
     , resourcet
     , template-haskell
     , text

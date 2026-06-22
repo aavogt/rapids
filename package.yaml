@@ -19,8 +19,8 @@ dependencies:
   - template-haskell
   - StateVar
   - text
+  - random
 
 library:
   source-dirs:
     - lib
-  ghc-options: -Wall
