@@ -50,19 +50,21 @@ lookupOneE fieldName = do
 tupE1 [x] = x
 tupE1 xs = tupE xs
 
--- | read ./config.ini for example as expressions:
+-- | read the ./config.ini prusa-slicer configuration at compile time
+--
+-- As expression the result is:
 --
 -- > [iniVal| first_layer_height |] :: Double
 -- > [iniVal| first_layer_height layer_height |] :: (Double,Double)
 --
--- or as a top-level declaration:
+-- As a top-level declaration the result is:
 --
 -- > [iniVal| extrusion_width layer_height |]
 -- ==>
 -- extrusion_width = 0.4
 -- layer_height = 0.2
 --
--- if it parses as an Int it'll be Int
+-- if it parses as an Int it'll be Int, so @extrusion_width = 1.0@ is probably better than @extrusion_width = 1@
 iniVal :: QuasiQuoter
 iniVal =
   QuasiQuoter
