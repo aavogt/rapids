@@ -29,6 +29,7 @@ module Rapids
     -- module Rapids.Color,
     module Rapids.IniVal,
     module Rapids.Path,
+    module Rapids.Section,
     module Linear,
     module Control.Lens,
     module Waterfall,
@@ -38,6 +39,7 @@ where
 import Control.Applicative
 import Control.Lens hiding (prism)
 -- import Rapids.Color
+import Rapids.Section(section, sectionPerimeter)
 
 import Control.Monad
 import Data.IORef

@@ -2,12 +2,12 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections #-}
-{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 
-module Rapids.Section (module Rapids.Section) where
+module Rapids.Section where
 
 import Control.Lens
 import Control.Monad
+import Data.Acquire (Acquire)
 import Data.Functor
 import Data.List hiding (union)
 import Data.Maybe
@@ -93,19 +93,15 @@ section solid n p =
     return new TopoDS_Shape(section.Shape());
   } |]
     <&> \raw ->
-      if raw == nullPtr
-        then []
-        else
-          recombine
-            1e-5
-            [ Path $ ComplexRawPath wire
-              | wire <- unsafeFromAcquireT $ mapM edgeToWire =<< allEdges (castPtr raw)
-            ]
+      if raw == nullPtr then [] else recombine 1e-5 $ unsafeFromAcquireT $ allEdgesAsPaths raw
+
+-- | Waterfall.Internal.Edges.'allWires' doesn't find anything, allEdges finds the edges without connectivity,
+allEdgesAsPaths :: Ptr () -> Acquire [Path]
+allEdgesAsPaths raw = mapM (fmap (Path . ComplexRawPath) . edgeToWire) =<< allEdges (castPtr raw)
 
 -- | @ps2 = recombine tol ps@ combines paths that share endpoints. Paths will be reversed if two starts are the same.
 -- tol applies to the Linear.'distance'.
 --
--- Waterfall.Internal.Edges.allWires doesn't find anything from the section, so recombine here
 --
 -- this one will be slow with many edges. n^2 ish if the edges are randomly ordered
 -- we could probably sort by Linear.angle around a mean(?) after projecting into the sectioning plane
