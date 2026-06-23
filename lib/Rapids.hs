@@ -26,7 +26,7 @@
 --  - signum = 'aabbToSolid' . 'axisAlignedBoundingBox' :: 'Solid' -> Solid
 module Rapids
   ( module Rapids,
-    -- module Rapids.Color,
+    module Rapids.Color,
     module Rapids.IniVal,
     module Rapids.Path,
     module Rapids.Section,
@@ -38,7 +38,7 @@ where
 
 import Control.Applicative
 import Control.Lens hiding (prism)
--- import Rapids.Color
+import Rapids.Color
 import Rapids.Section(section, sectionPerimeter)
 
 import Control.Monad
@@ -52,7 +52,7 @@ import Rapids.Path
 import System.Directory
 import System.FilePath
 import Waterfall hiding
-  ( appendPath,
+  (unions, appendPath,
     appendPath2D,
     appendSegment,
     appendSegment2D,
@@ -107,6 +107,7 @@ import Waterfall hiding
     union,
     scale2D,
     translate2D,
+    intersections,
   )
 import qualified Waterfall as W
 
@@ -135,17 +136,17 @@ class Translate a where
   -- > translate ez z -- along z
   translate :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, Transformable a, a' ~ a) => Translate (d -> e -> f -> a -> a') where
-  translate x y z a = W.translate (V3 x y z) a
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, PropagateColor a, a' ~ a) => Translate (d -> e -> f -> a -> a') where
+  translate x y z a = propagateColor (W.translate (V3 x y z)) a
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable a, a ~ a') => Translate (V3 d -> a -> a') where
-  translate v a = W.translate v a
+instance {-# OVERLAPPABLE #-} (d ~ Double, PropagateColor a, a ~ a') => Translate (V3 d -> a -> a') where
+  translate v a = propagateColor (W.translate v) a
 
 -- | Linear defines 'ex' 'ey' 'ez'
 --
 -- > transform 'ex' 3 solid
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) => Translate (E v -> amt -> a -> a') where
-  translate (E e) amt a = W.translate (0 & e .~ amt) a
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, PropagateColor a, a' ~ a) => Translate (E v -> amt -> a -> a') where
+  translate (E e) amt a = propagateColor (W.translate (0 & e .~ amt)) a
 
 class Translate2D a where
   translate2D :: a
@@ -172,17 +173,17 @@ class Rotate a where
   -- > rotate ex    rad
   rotate :: a
 
-instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, Transformable a, a' ~ a) => Rotate (x -> y -> z -> ang -> a -> a') where
-  rotate x y z ang a = W.rotate (V3 x y z) ang a
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (x -> y -> z -> ang -> a -> a') where
+  rotate x y z ang a = propagateColor (W.rotate (V3 x y z) ang) a
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, ang ~ Double, Transformable a, a' ~ a) => Rotate (V3 d -> ang -> a -> a') where
-  rotate v ang a = W.rotate v ang a
+instance {-# OVERLAPPABLE #-} (d ~ Double, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (V3 d -> ang -> a -> a') where
+  rotate v ang a = propagateColor (W.rotate v ang) a
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable a, a' ~ a) => Rotate (Quaternion d -> a -> a') where
-  rotate q a = W.rotate (q ^. _yzw) (acos (q ^. _x)) a
+instance {-# OVERLAPPABLE #-} (d ~ Double, PropagateColor a, a' ~ a) => Rotate (Quaternion d -> a -> a') where
+  rotate q a = propagateColor (W.rotate (q ^. _yzw) (acos (q ^. _x))) a
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, Transformable a, a' ~ a) => Rotate (E v -> ang -> a -> a') where
-  rotate (E e) ang a = W.rotate (0 & e .~ 1) ang a
+instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (E v -> ang -> a -> a') where
+  rotate (E e) ang a = propagateColor (W.rotate (0 & e .~ 1) ang) a
 
 -- | Rotate by degrees around an axis specified in one of these ways:
 class RotateBy a where
@@ -194,17 +195,17 @@ class RotateBy a where
   -- > rotateDeg ey deg
   rotateDeg :: a
 
-instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, Transformable a, a' ~ a) => RotateBy (x -> y -> z -> deg -> a -> a') where
-  rotateDeg x y z p a = W.rotate (V3 x y z) (p * pi / 180) a
+instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => RotateBy (x -> y -> z -> deg -> a -> a') where
+  rotateDeg x y z p a = propagateColor (W.rotate (V3 x y z) (p * pi / 180)) a
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, Transformable a, a' ~ a) => RotateBy (V3 d -> deg -> a -> a') where
-  rotateDeg v p a = W.rotate v (p * pi / 180) a
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateBy (V3 d -> deg -> a -> a') where
+  rotateDeg v p a = propagateColor (W.rotate v (p * pi / 180)) a
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, Transformable a, a' ~ a) => RotateBy (Quaternion d -> deg -> a -> a') where
-  rotateDeg q p = W.rotate (q ^. _yzw) (p * pi / 180)
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateBy (Quaternion d -> deg -> a -> a') where
+  rotateDeg q p = propagateColor (W.rotate (q ^. _yzw) (p * pi / 180))
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, Transformable a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
-  rotateDeg (E e) p a = W.rotate (0 & e .~ 1) (p * pi / 180) a
+instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
+  rotateDeg (E e) p a = propagateColor (W.rotate (0 & e .~ 1) (p * pi / 180)) a
 
 -- | Scale x y z axes
 class Scale a where
@@ -216,14 +217,14 @@ class Scale a where
   -- > scale ey y
   scale :: a
 
-instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Transformable a, a' ~ a) => Scale (E v -> amt -> a -> a') where
-  scale (E e) amt a = W.scale (1 & e .~ amt) a
+instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, PropagateColor a, a' ~ a) => Scale (E v -> amt -> a -> a') where
+  scale (E e) amt a = propagateColor (W.scale (1 & e .~ amt)) a
 
-instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Transformable a, a' ~ a) => Scale (x -> y -> z -> a -> a') where
-  scale x y z a = W.scale (V3 x y z) a
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => Scale (x -> y -> z -> a -> a') where
+  scale x y z a = propagateColor (W.scale (V3 x y z)) a
 
-instance {-# OVERLAPS #-} (Transformable a, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
-  scale xyz a = W.scale (V3 xyz xyz xyz) a
+instance {-# OVERLAPS #-} (PropagateColor a, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
+  scale xyz a = propagateColor (W.scale (V3 xyz xyz xyz)) a
 
 -- | Scale x y axes
 class Scale2D a where
@@ -255,27 +256,27 @@ class Mirror a where
   -- > mirror ez z
   mirror :: a
 
-instance {-# OVERLAPS #-} (vd ~ V3 Double, Transformable s, s' ~ s) => Mirror (vd -> s -> s') where
-  mirror v a = W.mirror v a
+instance {-# OVERLAPS #-} (vd ~ V3 Double, PropagateColor s, s' ~ s) => Mirror (vd -> s -> s') where
+  mirror v a = propagateColor (W.mirror v) a
 
-instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, Transformable s, s' ~ s) => Mirror (E v -> s -> s') where
-  mirror (E e) a = W.mirror (0 & e .~ 1) a
+instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, PropagateColor s, s' ~ s) => Mirror (E v -> s -> s') where
+  mirror (E e) a = propagateColor (W.mirror (0 & e .~ 1)) a
 
-instance {-# INCOHERENT #-} (v ~ V3, v ~ v', Transformable s, s' ~ s) => Mirror (E v -> E v' -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', PropagateColor s, s' ~ s) => Mirror (E v -> E v' -> s -> s') where
   mirror (E f) (E g) a =
-    let ga = W.mirror (0 & g .~ 1) a
-        fga = W.mirror (0 & f .~ 1) ga
+    let ga = propagateColor (W.mirror (0 & g .~ 1)) a
+        fga = propagateColor (W.mirror (0 & f .~ 1)) ga
     in fga
 
-instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', Transformable s, s' ~ s) => Mirror (E v -> E v' -> E v'' -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', PropagateColor s, s' ~ s) => Mirror (E v -> E v' -> E v'' -> s -> s') where
   mirror (E e) (E f) (E g) a =
-    let ga = W.mirror (0 & g .~ 1) a
-        fga = W.mirror (0 & f .~ 1) ga
-        efga = W.mirror (0 & e .~ 1) fga
+    let ga = propagateColor (W.mirror (0 & g .~ 1)) a
+        fga = propagateColor (W.mirror (0 & f .~ 1)) ga
+        efga = propagateColor (W.mirror (0 & e .~ 1)) fga
     in efga
 
-instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Transformable s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
-  mirror x y z a = W.mirror (V3 x y z) a
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, PropagateColor s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
+  mirror x y z a = propagateColor (W.mirror (V3 x y z)) a
 
 -- | mirror plus the original both the original and the image as in freecad's PartDesign::Mirrored
 class Mirrored a where
@@ -286,16 +287,16 @@ class Mirrored a where
   -- > mirrored ex x
   mirrored :: a
 
-instance {-# OVERLAPS #-} (vd ~ V3 Double, Num s, Transformable s, s' ~ s) => Mirrored (vd -> s -> s') where
+instance {-# OVERLAPS #-} (vd ~ V3 Double, Num s, PropagateColor s, s' ~ s) => Mirrored (vd -> s -> s') where
   mirrored v a = W.mirror v a + a
 
-instance {-# INCOHERENT #-} (v ~ V3, v ~ v', Num s, Transformable s, s' ~ s) => Mirrored (E v -> E v' -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', Num s, PropagateColor s, s' ~ s) => Mirrored (E v -> E v' -> s -> s') where
   mirrored (E f) (E g) a =
     let ga = W.mirror (0 & g .~ 1) a + a
         fga = W.mirror (0 & f .~ 1) ga + ga
     in fga
 
-instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', Num s, Transformable s, s' ~ s) => Mirrored (E v -> E v' -> E v'' -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', Num s, PropagateColor s, s' ~ s) => Mirrored (E v -> E v' -> E v'' -> s -> s') where
   mirrored (E e) (E f) (E g) a =
     let ga = W.mirror (0 & g .~ 1) a + a
         fga = W.mirror (0 & f .~ 1) ga + ga
@@ -303,10 +304,10 @@ instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', Num s, Transformable s, s'
     in efga
 -- can it be recursive?
 
-instance {-# INCOHERENT #-} (v ~ V3, Num s, Transformable s, s' ~ s) => Mirrored (E v -> s -> s') where
+instance {-# INCOHERENT #-} (v ~ V3, Num s, PropagateColor s, s' ~ s) => Mirrored (E v -> s -> s') where
   mirrored (E e) a = W.mirror (0 & e .~ 1) a + a
 
-instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Num s, Transformable s, s ~ s') => Mirrored (x -> y -> z -> s -> s') where
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Num s, PropagateColor s, s ~ s') => Mirrored (x -> y -> z -> s -> s') where
   mirrored x y z a = W.mirror (V3 x y z) a + a
 
 -- | needed for `instance Mirrored (_ -> Path -> Path)`
@@ -317,9 +318,9 @@ instance Num Path where
 -- because x + (0 - x) is supposed to work?
 
 instance Num Solid where
-  (-) = W.difference
-  (+) = W.union
-  (*) = W.intersection
+  (-) = difference
+  (+) = union
+  (*) = intersection
   negate = W.complement
   fromInteger n = scale (fromInteger n) unitCube
 
