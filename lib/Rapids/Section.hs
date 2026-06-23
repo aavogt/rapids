@@ -32,15 +32,11 @@ Cpp.include "<gp_Vec.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 Cpp.include "<TopoDS.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
-Cpp.include "<BRepBuilderAPI_MakeWire.hxx>"
 Cpp.include "<BRepGProp.hxx>"
 Cpp.include "<BRepAlgoAPI_Section.hxx>"
 Cpp.include "<BRep_Tool.hxx>"
 Cpp.include "<TopExp_Explorer.hxx>"
-Cpp.include "<ShapeAnalysis_FreeBounds.hxx>"
-Cpp.include "<TopTools_HSequenceOfShape.hxx>"
-Cpp.include "<BRep_Builder.hxx>"
-Cpp.include "<TopoDS_Compound.hxx>"
+Cpp.include "<BRepGProp_Cinert.hxx>"
 
 -- | @p = sectionPerimeter1 s n x@
 --
