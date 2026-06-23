@@ -400,6 +400,8 @@ instance (Double ~ d) => ToPath [V2 d] where toPath abspts = mconcat [line (V3 a
 
 instance (Double ~ d) => ToPath [V3 d] where toPath abspts = mconcat [line a b | a : b : _ <- tails abspts]
 
+instance {-# OVERLAPS #-} path ~ Path => ToPath path where toPath = id
+
 sweep path shape = W.sweep (toPath path) (toShape shape)
 
 instance Num Shape where
