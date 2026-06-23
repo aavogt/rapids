@@ -1,47 +1,28 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
 {-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 
-module Rapids.Section where
+module Rapids.Section (module Rapids.Section) where
 
+import Control.Lens
 import Control.Monad
-import Control.Monad.IO.Class
-import Data.Acquire
-import Data.Foldable
 import Data.Functor
+import Data.List hiding (union)
+import Data.Maybe
 import Foreign
 import Foreign.C.Types
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import Linear
-import qualified OpenCascade.BRep.Tool as BRep.Tool
-import qualified OpenCascade.BRepAdaptor.Curve as BRepAdaptor.Curve
-import qualified OpenCascade.BRepBuilderAPI.MakeEdge as MakeEdge
-import qualified OpenCascade.BRepBuilderAPI.MakeWire as MakeWire
-import qualified OpenCascade.BRepGProp as BRepGProp
-import qualified OpenCascade.BRepLib as BRepLib
-import qualified OpenCascade.BRepTools.WireExplorer as WireExplorer
-import qualified OpenCascade.GCPnts.AbscissaPoint as AbscissaPoint
-import qualified OpenCascade.GP.Vec as GPVec
-import qualified OpenCascade.GProp.GProps as GProps
-import qualified OpenCascade.Geom.Curve as Geom.Curve
-import OpenCascade.GeomAbs.Shape as GeomAbs.Shape hiding (Shape)
-import OpenCascade.Inheritance (unsafeDowncast, upcast)
-import qualified OpenCascade.TopAbs.ShapeEnum as ShapeEnum
-import qualified OpenCascade.TopExp.Explorer as Explorer
-import qualified OpenCascade.TopTools.ShapeMapHasher as TopTools.ShapeMapHasher
-import qualified OpenCascade.TopoDS as TopoDS
-import qualified OpenCascade.TopoDS.Shape as TopoDS.Shape
 import System.Random
 import Waterfall
 import Waterfall.Internal.Edges
-import Waterfall.Internal.Finalizers (unsafeFromAcquire, unsafeFromAcquireT)
-import Waterfall.Internal.FromOpenCascade (gpPntToV3, gpVecToV3)
+import Waterfall.Internal.Finalizers
 import Waterfall.Internal.Path
-import Waterfall.Internal.Path.Common (RawPath (ComplexRawPath))
-import Waterfall.Internal.ToOpenCascade (v3ToPnt)
+import Waterfall.Internal.Path.Common
 
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
@@ -113,70 +94,55 @@ section solid n p =
         return NULL;
     }
 
-    TopoDS_Shape result = section.Shape();
-
-    Handle(TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape();
-    for (TopExp_Explorer edgeExplorer(result, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
-        edges->Append(edgeExplorer.Current());
-    }
-
-    Handle(TopTools_HSequenceOfShape) wires = new TopTools_HSequenceOfShape();
-    // Use geometric proximity (not shared-vertex identity), since section edges
-    // often have coincident endpoints that are not topologically shared.
-    ShapeAnalysis_FreeBounds::ConnectEdgesToWires(edges, 1e-6, Standard_False, wires);
-
-    TopoDS_Compound out;
-    BRep_Builder builder;
-    builder.MakeCompound(out);
-
-    if (wires->Length() > 0) {
-        for (Standard_Integer i = 1; i <= wires->Length(); ++i) {
-            builder.Add(out, wires->Value(i));
-        }
-    } else {
-        // Fallback: preserve section content as individual edges if no wire could be built.
-        for (Standard_Integer i = 1; i <= edges->Length(); ++i) {
-            builder.Add(out, edges->Value(i));
-        }
-    }
-
-    return new TopoDS_Shape(out);
+    return new TopoDS_Shape(section.Shape());
   } |]
     <&> \raw ->
       if raw == nullPtr
         then []
         else
-          [ Path $ ComplexRawPath wire
-            | wire <- unsafeFromAcquireT $ allWiresCopy (castPtr raw)
-          ]
+          recombine
+            1e-5
+            [ Path $ ComplexRawPath wire
+              | wire <- unsafeFromAcquireT $ mapM edgeToWire =<< allEdges (castPtr raw)
+            ]
 
-allWiresCopy :: Ptr TopoDS.Shape -> Acquire [Ptr TopoDS.Wire]
-allWiresCopy s = do
-  ws <- traverse (liftIO . unsafeDowncast) =<< allSubShapesWithCopy ShapeEnum.Wire s
-  if null ws -- always null!
-    then mapM edgeToWire =<< allEdges s
-    else pure ws
+-- | @ps2 = recombine tol ps@ combines paths that share endpoints. Paths will be reversed if two starts are the same.
+-- tol applies to the Linear.'distance'.
+--
+-- Waterfall.Internal.Edges.allWires doesn't find anything from the section, so recombine here
+--
+-- this one will be slow with many edges. n^2 ish if the edges are randomly ordered
+-- we could probably sort by Linear.angle around a mean(?) after projecting into the sectioning plane
+--
+-- alternatives
+-- bucket grids intmap^3 or array (lookup adjacent buckets if we're close to the edge)
+-- kd tree
+-- plane sweep
+recombine :: Double -> [Path] -> [Path]
+recombine tol ps = map fst $ foldl (go same) [] (mapMaybe (\p -> (p,) <$> pathEndpoints p) ps)
+  where
+    same x y = distance x y <= tol
 
--- copy waterfall-cad-0.6.2.1/src/Waterfall/Internal/Edges.hs
-allSubShapesWithCopy :: ShapeEnum.ShapeEnum -> Ptr TopoDS.Shape -> Acquire [Ptr TopoDS.Shape]
-allSubShapesWithCopy t s = do
-  explorer <- Explorer.new s t
-  let go visited = do
-        isMore <- liftIO $ Explorer.more explorer
-        if isMore
-          then do
-            v <- liftIO $ Explorer.value explorer
-            hash <- liftIO $ TopTools.ShapeMapHasher.hash v
-            add <-
-              if hash `elem` visited
-                then pure id
-                else do
-                  v' <- TopoDS.Shape.copy v
-                  return (v' :)
-            liftIO $ Explorer.next explorer
-            add <$> go visited
-          else return []
-  go []
+go :: (b -> b -> Bool) -> [(Path, (b, b))] -> (Path, (b, b)) -> [(Path, (b, b))]
+go same accum pft@(p, (p1, p2)) =
+  fromMaybe (pft : accum) $ listToMaybe $ mapMaybe ($ accum) [tryL, tryR, revL, revR]
+  where
+    tryL = tryp (same p2 . fst) (p <>) ((p1,) . snd)
+    tryR = tryp (same p1 . snd) (<> p) ((,p2) . fst)
+    revL = tryp (same b2 . fst) (b <>) ((b1,) . snd)
+    revR = tryp (same b1 . snd) (<> b) ((,b2) . fst)
+    b = reversePath p
+    b1 = p2
+    b2 = p1
+
+tryp :: ((s, t) -> Bool) -> (a -> a) -> ((s, t) -> (s, t)) -> [(a, (s, t))] -> Maybe [(a, (s, t))]
+tryp g f h = setFirst (g . snd) (\(q, q1q2) -> let r = f q in (r, h q1q2))
+
+setFirst :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
+setFirst p f (x : xs)
+  | p x = Just (f x : xs)
+  | otherwise = (x :) <$> setFirst p f xs
+setFirst _ _ [] = Nothing
 
 testNested :: IO Bool
 testNested = do
@@ -188,7 +154,7 @@ testNested = do
 
 testPerimetersEqual :: IO Bool
 testPerimetersEqual = do
-  let base = union unitCube unitSphere
+  let base = unitCube `union` unitSphere
       samples = 200
       tol = 1e-6
 
