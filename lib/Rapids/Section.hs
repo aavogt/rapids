@@ -1,9 +1,14 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 
 module Rapids.Section where
 
 import Control.Monad
+import Control.Monad.IO.Class
+import Data.Acquire
+import Data.Foldable
 import Data.Functor
 import Foreign
 import Foreign.C.Types
@@ -11,14 +16,32 @@ import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import Linear
-import Linear.V3 (V3 (..))
+import qualified OpenCascade.BRep.Tool as BRep.Tool
+import qualified OpenCascade.BRepAdaptor.Curve as BRepAdaptor.Curve
+import qualified OpenCascade.BRepBuilderAPI.MakeEdge as MakeEdge
+import qualified OpenCascade.BRepBuilderAPI.MakeWire as MakeWire
+import qualified OpenCascade.BRepGProp as BRepGProp
+import qualified OpenCascade.BRepLib as BRepLib
+import qualified OpenCascade.BRepTools.WireExplorer as WireExplorer
+import qualified OpenCascade.GCPnts.AbscissaPoint as AbscissaPoint
 import qualified OpenCascade.GP.Vec as GPVec
+import qualified OpenCascade.GProp.GProps as GProps
+import qualified OpenCascade.Geom.Curve as Geom.Curve
+import OpenCascade.GeomAbs.Shape as GeomAbs.Shape hiding (Shape)
+import OpenCascade.Inheritance (unsafeDowncast, upcast)
+import qualified OpenCascade.TopAbs.ShapeEnum as ShapeEnum
+import qualified OpenCascade.TopExp.Explorer as Explorer
+import qualified OpenCascade.TopTools.ShapeMapHasher as TopTools.ShapeMapHasher
+import qualified OpenCascade.TopoDS as TopoDS
+import qualified OpenCascade.TopoDS.Shape as TopoDS.Shape
 import System.Random
 import Waterfall
+import Waterfall.Internal.Edges
+import Waterfall.Internal.Finalizers (unsafeFromAcquire, unsafeFromAcquireT)
+import Waterfall.Internal.FromOpenCascade (gpPntToV3, gpVecToV3)
 import Waterfall.Internal.Path
 import Waterfall.Internal.Path.Common (RawPath (ComplexRawPath))
-import Waterfall.Internal.Solid
-import Waterfall.TwoD.Internal.Shape
+import Waterfall.Internal.ToOpenCascade (v3ToPnt)
 
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
@@ -33,9 +56,10 @@ Cpp.include "<BRepGProp.hxx>"
 Cpp.include "<BRepAlgoAPI_Section.hxx>"
 Cpp.include "<BRep_Tool.hxx>"
 Cpp.include "<TopExp_Explorer.hxx>"
-Cpp.include "<BRepGProp_Cinert.hxx>"
+Cpp.include "<ShapeAnalysis_FreeBounds.hxx>"
+Cpp.include "<TopTools_HSequenceOfShape.hxx>"
+Cpp.include "<BRep_Builder.hxx>"
 Cpp.include "<TopoDS_Compound.hxx>"
-Cpp.include "<TopoDS_Builder.hxx>"
 
 -- | @p = sectionPerimeter1 s n x@
 --
@@ -73,7 +97,11 @@ sectionPerimeter solid n p =
  }
 |]
 
-section :: Solid -> V3 Double -> V3 Double -> IO Path
+-- | @paths = section s n x@
+--
+-- section a solid @s@ with the plane defined by normal @n@ and point @x@,
+-- returning all paths
+section :: Solid -> V3 Double -> V3 Double -> IO [Path]
 section solid n p =
   [Cpp.block| void* {
     gp_Pln pl = gp_Pln(* $pnt:p,* $dir:n);
@@ -87,28 +115,79 @@ section solid n p =
 
     TopoDS_Shape result = section.Shape();
 
-    // Waterfall.shapePaths explores TopAbs_WIRE. BRepAlgoAPI_Section usually
-    // returns a compound of edges, so wrap each edge into a wire first.
-    TopoDS_Compound wires;
-    TopoDS_Builder builder;
-    builder.MakeCompound(wires);
+    Handle(TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape();
+    for (TopExp_Explorer edgeExplorer(result, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
+        edges->Append(edgeExplorer.Current());
+    }
 
-    TopExp_Explorer edgeExplorer(result, TopAbs_EDGE);
-    for (; edgeExplorer.More(); edgeExplorer.Next()) {
-        TopoDS_Edge edge = TopoDS::Edge(edgeExplorer.Current());
-        BRepBuilderAPI_MakeWire makeWire;
-        makeWire.Add(edge);
-        if (makeWire.IsDone()) {
-            builder.Add(wires, makeWire.Wire());
+    Handle(TopTools_HSequenceOfShape) wires = new TopTools_HSequenceOfShape();
+    // Use geometric proximity (not shared-vertex identity), since section edges
+    // often have coincident endpoints that are not topologically shared.
+    ShapeAnalysis_FreeBounds::ConnectEdgesToWires(edges, 1e-6, Standard_False, wires);
+
+    TopoDS_Compound out;
+    BRep_Builder builder;
+    builder.MakeCompound(out);
+
+    if (wires->Length() > 0) {
+        for (Standard_Integer i = 1; i <= wires->Length(); ++i) {
+            builder.Add(out, wires->Value(i));
+        }
+    } else {
+        // Fallback: preserve section content as individual edges if no wire could be built.
+        for (Standard_Integer i = 1; i <= edges->Length(); ++i) {
+            builder.Add(out, edges->Value(i));
         }
     }
 
-    return new TopoDS_Shape(wires);
+    return new TopoDS_Shape(out);
   } |]
-    <&> Path . ComplexRawPath . castPtr
+    <&> \raw ->
+      if raw == nullPtr
+        then []
+        else
+          [ Path $ ComplexRawPath wire
+            | wire <- unsafeFromAcquireT $ allWiresCopy (castPtr raw)
+          ]
 
-testSection :: IO Bool
-testSection = do
+allWiresCopy :: Ptr TopoDS.Shape -> Acquire [Ptr TopoDS.Wire]
+allWiresCopy s = do
+  ws <- traverse (liftIO . unsafeDowncast) =<< allSubShapesWithCopy ShapeEnum.Wire s
+  if null ws -- always null!
+    then mapM edgeToWire =<< allEdges s
+    else pure ws
+
+-- copy waterfall-cad-0.6.2.1/src/Waterfall/Internal/Edges.hs
+allSubShapesWithCopy :: ShapeEnum.ShapeEnum -> Ptr TopoDS.Shape -> Acquire [Ptr TopoDS.Shape]
+allSubShapesWithCopy t s = do
+  explorer <- Explorer.new s t
+  let go visited = do
+        isMore <- liftIO $ Explorer.more explorer
+        if isMore
+          then do
+            v <- liftIO $ Explorer.value explorer
+            hash <- liftIO $ TopTools.ShapeMapHasher.hash v
+            add <-
+              if hash `elem` visited
+                then pure id
+                else do
+                  v' <- TopoDS.Shape.copy v
+                  return (v' :)
+            liftIO $ Explorer.next explorer
+            add <$> go visited
+          else return []
+  go []
+
+testNested :: IO Bool
+testNested = do
+  let [a, b, c, d, e] = unitSphere : [uScale n unitSphere | n <- [2, 3, 4, 5]]
+      abcde = e -- unions [ difference e d,  difference c b, a ]
+  sec <- section abcde (V3 1 0 0) 0
+  print (map pathEndpoints sec)
+  return True
+
+testPerimetersEqual :: IO Bool
+testPerimetersEqual = do
   let base = union unitCube unitSphere
       samples = 200
       tol = 1e-6
@@ -121,10 +200,10 @@ oneCase base tol = do
   n0 <- randomNonZeroVec3
   let n = normalize n0
 
-  sec <- section base n p
+  secPaths <- section base n p
   per1 <- sectionPerimeter base n p
-  
-  let per2 = Waterfall.pathLength3D sec
+
+  let per2 = sum (map Waterfall.pathLength3D secPaths)
 
   let ok = approx tol (realToFrac per1) per2
   unless ok $ do
