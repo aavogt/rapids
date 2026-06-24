@@ -20,6 +20,7 @@ dependencies:
   - StateVar
   - text
   - random
+  - these
 
 default-extensions:
   - BangPatterns

@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | propagate face colors
 module Rapids.Color
@@ -30,6 +31,7 @@ module Rapids.Color
     magenta,
     raywhite,
     setColor,
+    tagLoc,
 
     -- * color propagating
     intersections,
@@ -39,8 +41,9 @@ module Rapids.Color
     union,
     difference,
     PropagateColor (..),
+
     -- * internals
-    faceColorMap,
+    faceAttrsMap,
   )
 where
 
@@ -51,11 +54,13 @@ import Data.IORef
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.StateVar
+import Data.These (These (..))
 import Foreign
 import Foreign.C
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
+import Language.Haskell.TH (ExpQ, loc_filename, loc_start, location, stringE)
 import Linear (V3 (..))
 import OpenCascade.BOPAlgo.Operation (Operation (..))
 import qualified OpenCascade.BOPAlgo.Operation as BOPAlgo.Operation
@@ -82,6 +87,10 @@ Cpp.include "<XCAFDoc_ColorTool.hxx>"
 Cpp.include "<XCAFDoc_ShapeTool.hxx>"
 Cpp.include "<XCAFApp_Application.hxx>"
 Cpp.include "<XCAFDoc_DocumentTool.hxx>"
+Cpp.include "<XCAFDoc_NotesTool.hxx>"
+Cpp.include "<XCAFDoc_Note.hxx>"
+Cpp.include "<TCollection_ExtendedString.hxx>"
+Cpp.include "<TCollection_HAsciiString.hxx>"
 Cpp.include "<STEPCAFControl_Writer.hxx>"
 Cpp.include "<Quantity_Color.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
@@ -89,9 +98,37 @@ Cpp.include "<stdio.h>"
 
 type FaceKey = (Ptr (), CSize)
 
-{-# NOINLINE faceColorMap #-}
-faceColorMap :: IORef (Map FaceKey (V3 CDouble))
-faceColorMap = unsafePerformIO $ newIORef Map.empty
+-- | global variable for source location "main.hs:line:col" and color
+{-# NOINLINE faceAttrsMap #-}
+faceAttrsMap :: IORef (Map FaceKey (These String (V3 CDouble)))
+faceAttrsMap = unsafePerformIO $ newIORef Map.empty
+
+locationStr :: ExpQ
+locationStr = do
+  loc <- location
+  let (line, col) = loc_start loc
+  stringE (loc_filename loc ++ ":" ++ show line ++ ":" ++ show col)
+
+-- | @{-# LANGUAGE TemplateHaskell #-}@ @$tagLoc :: Solid -> Solid@ stores a comment
+-- with source location attached to all faces of the solid.
+tagLoc :: ExpQ
+tagLoc = [|tagFaceNote $(locationStr)|]
+
+combineNote :: String -> Maybe (These String (V3 CDouble)) -> These String (V3 CDouble)
+combineNote note mOld =
+  case mOld of
+    Nothing -> This note
+    Just (This _) -> This note
+    Just (That color) -> These note color
+    Just (These _ color) -> These note color
+
+combineColor :: V3 CDouble -> Maybe (These String (V3 CDouble)) -> These String (V3 CDouble)
+combineColor color mOld =
+  case mOld of
+    Nothing -> That color
+    Just (This note) -> These note color
+    Just (That _) -> That color
+    Just (These note _) -> These note color
 
 normalizeColor :: V3 CDouble -> V3 CDouble
 normalizeColor color@(V3 r g b)
@@ -106,7 +143,13 @@ normalizeColor color@(V3 r g b)
 setColor :: V3 CDouble -> Solid -> Solid
 setColor (normalizeColor -> color) (Solid raw) = unsafeFromAcquire do
   solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
-  liftIO $ withFaces_ solid $ \k -> modifyIORef' faceColorMap $ Map.insert k color
+  liftIO $ withFaces_ solid $ \k -> modifyIORef' faceAttrsMap $ Map.alter (Just . combineColor color) k
+  pure solid
+
+tagFaceNote :: String -> Solid -> Solid
+tagFaceNote note (Solid raw) = unsafeFromAcquire do
+  solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
+  liftIO $ withFaces_ solid $ \k -> modifyIORef' faceAttrsMap $ Map.alter (Just . combineNote note) k
   pure solid
 
 faceKeys :: Solid -> IO [FaceKey]
@@ -125,12 +168,12 @@ instance {-# OVERLAPS #-} (Transformable a) => PropagateColor a where propagateC
 instance PropagateColor Solid where
   propagateColor f solid = unsafePerformIO do
     let !solid' = f solid
-    colorMap <- readIORef faceColorMap
+    colorMap <- readIORef faceAttrsMap
     inKeys <- faceKeys solid
     outKeys <- faceKeys solid'
     for_ (zip inKeys outKeys) \(srcKey, dstKey) ->
       for_ (Map.lookup srcKey colorMap) \color ->
-        modifyIORef' faceColorMap $ Map.insert dstKey color
+        modifyIORef' faceAttrsMap $ Map.insert dstKey color
     pure solid'
 
 withFaces_ :: Solid -> (FaceKey -> IO ()) -> IO ()
@@ -188,11 +231,11 @@ mkStepWriterColor = do
     doc <- newXCAFDoc
     count <- atomicModifyIORef count (\a -> (succ <$> a <|> Just 0, a))
     let out = prefix ++ maybe "" show count ++ ".step"
-    colorMap <- readIORef faceColorMap
-    faceColors <- newIORef []
+    colorMap <- readIORef faceAttrsMap
+    facePayloads <- newIORef []
     withFaces_ solid $ \k ->
-      for_ (Map.lookup k colorMap) \c -> faceColors $~ ((k, c) :)
-    addShapeWithFaceColors doc solid =<< get faceColors
+      for_ (Map.lookup k colorMap) \payload -> facePayloads $~ ((k, payload) :)
+    addShapeWithFaceData doc solid =<< get facePayloads
     writeXCAFToSTEP out doc
     return out
 
@@ -215,11 +258,11 @@ withBooleans2 op inputs = withBooleans op inputs \(result, history) -> do
 propagateColors :: Ptr () -> [Solid] -> IO ()
 propagateColors history _ | history == nullPtr = return ()
 propagateColors history solids = do
-  colorMap <- readIORef faceColorMap
+  colorMap <- readIORef faceAttrsMap
   for_ solids \solid ->
     withModifiedFaces_ history solid $ \srcShapePtr srcLocHash dstShapePtr dstLocHash ->
       for_ (Map.lookup (srcShapePtr, srcLocHash) colorMap) \color ->
-        modifyIORef' faceColorMap $ \m -> Map.insert (dstShapePtr, dstLocHash) color m
+        modifyIORef' faceAttrsMap $ \m -> Map.insert (dstShapePtr, dstLocHash) color m
 
 -- Returns a raw doc pointer you thread through
 newXCAFDoc :: IO (Ptr ())
@@ -232,27 +275,45 @@ newXCAFDoc =
     return doc.get();
 }|]
 
-addShapeWithFaceColors :: Ptr () -> Solid -> [(FaceKey, V3 CDouble)] -> IO ()
-addShapeWithFaceColors doc solid faceColors =
-  withArray (map (fst . fst) faceColors) $ \faceShapePtrs ->
-    withArray (map (snd . fst) faceColors) $ \faceLocHashes ->
-      withArray (concatMap (\(_, V3 r g b) -> [r, g, b]) faceColors) $ \colorArr ->
-        let n = fromIntegral (length faceColors)
-         in [C.block| void {
+addShapeWithFaceData :: Ptr () -> Solid -> [(FaceKey, These String (V3 CDouble))] -> IO ()
+addShapeWithFaceData doc solid faceData = do
+  let toParts ((shapePtr, locHash), payload) =
+        case payload of
+          This note -> (shapePtr, locHash, 0 :: CInt, V3 0 0 0, note)
+          That rgb -> (shapePtr, locHash, 1 :: CInt, rgb, "")
+          These note rgb -> (shapePtr, locHash, 1 :: CInt, rgb, note)
+      parts = map toParts faceData
+      shapePtrs = map (\(p, _, _, _, _) -> p) parts
+      locHashes = map (\(_, h, _, _, _) -> h) parts
+      hasColors = map (\(_, _, hc, _, _) -> hc) parts
+      colors = concatMap (\(_, _, _, V3 r g b, _) -> [r, g, b]) parts
+      notes = map (\(_, _, _, _, n) -> n) parts
+      n = fromIntegral (length faceData)
+
+  withArray shapePtrs $ \faceShapePtrs ->
+    withArray locHashes $ \faceLocHashes ->
+      withArray hasColors $ \faceHasColors ->
+        withArray colors $ \colorArr ->
+          withMany withCString notes $ \noteCStrs ->
+            withArray noteCStrs $ \noteArr ->
+              [C.block| void {
     try {
       Handle(TDocStd_Document) docH((const TDocStd_Document*)$(void* doc));
       auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(docH->Main());
       auto colorTool = XCAFDoc_DocumentTool::ColorTool(docH->Main());
+      auto notesTool = XCAFDoc_DocumentTool::NotesTool(docH->Main());
 
       TDF_Label shapeLabel = shapeTool->AddShape(*$solid:solid, Standard_False);
       if (shapeLabel.IsNull()) {
-        fprintf(stderr, "addShapeWithFaceColors: AddShape returned null label\n");
+        fprintf(stderr, "addShapeWithFaceData: AddShape returned null label\n");
         return;
       }
 
-      void**  shapePtrs = $(void** faceShapePtrs);
-      size_t* locHashes = $(size_t* faceLocHashes);
-      double* colors    = $(double* colorArr);
+      void**       shapePtrs  = $(void** faceShapePtrs);
+      size_t*      locHashes  = $(size_t* faceLocHashes);
+      int*         hasColors  = $(int* faceHasColors);
+      double*      colors     = $(double* colorArr);
+      const char** notes      = $(const char** noteArr);
 
       TopExp_Explorer explorer(*$solid:solid, TopAbs_FACE);
       for (; explorer.More(); explorer.Next()) {
@@ -267,19 +328,39 @@ addShapeWithFaceColors doc solid faceColors =
           TDF_Label faceLabel;
           shapeTool->AddSubShape(shapeLabel, face, faceLabel);
           if (faceLabel.IsNull()) {
-            fprintf(stderr, "addShapeWithFaceColors: no face label for matched subshape\n");
+            fprintf(stderr, "addShapeWithFaceData: no face label for matched subshape\n");
             continue;
           }
 
-          Quantity_Color c(colors[i*3], colors[i*3+1], colors[i*3+2], Quantity_TOC_RGB);
-          colorTool->SetColor(faceLabel, c, XCAFDoc_ColorSurf);
+          if (hasColors[i]) {
+            Quantity_Color c(colors[i*3], colors[i*3+1], colors[i*3+2], Quantity_TOC_RGB);
+            colorTool->SetColor(faceLabel, c, XCAFDoc_ColorSurf);
+          }
+
+          if (notes[i] != nullptr && notes[i][0] != '\0') {
+            auto aNote = notesTool->CreateComment(
+              TCollection_ExtendedString(""),
+              TCollection_ExtendedString(""),
+              TCollection_ExtendedString(notes[i])
+            );
+            if (!aNote.IsNull()) {
+              auto aRef = notesTool->AddNote(aNote->Label(), faceLabel);
+              if (aRef.IsNull()) {
+                fprintf(stderr, "addShapeWithFaceData: failed to attach note to face label\n");
+              }
+            } else {
+              fprintf(stderr, "addShapeWithFaceData: failed to create note comment\n");
+            }
+          }
+
+
           break;
         }
       }
     } catch (const Standard_Failure& e) {
-      fprintf(stderr, "addShapeWithFaceColors: OCCT exception: %s\n", e.GetMessageString());
+      fprintf(stderr, "addShapeWithFaceData: OCCT exception: %s\n", e.GetMessageString());
     } catch (...) {
-      fprintf(stderr, "addShapeWithFaceColors: unknown C++ exception\n");
+      fprintf(stderr, "addShapeWithFaceData: unknown C++ exception\n");
     }
   }|]
 
