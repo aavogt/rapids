@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE DeriveLift #-}
 
 -- | propagate face colors
 module Rapids.Color
@@ -72,6 +74,7 @@ import System.IO.Unsafe
 import Waterfall hiding (Shape, difference, intersection, intersections, union, unions)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Waterfall.Internal.Solid (Solid (Solid))
+import Language.Haskell.TH.Syntax
 
 C.context (occtContext <> Cpp.funCtx)
 Cpp.include "<TopExp_Explorer.hxx>"
@@ -93,6 +96,7 @@ Cpp.include "<TCollection_ExtendedString.hxx>"
 Cpp.include "<TCollection_HAsciiString.hxx>"
 Cpp.include "<STEPCAFControl_Writer.hxx>"
 Cpp.include "<Quantity_Color.hxx>"
+Cpp.include "<TDataStd_Name.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 Cpp.include "<stdio.h>"
 
@@ -147,8 +151,7 @@ setColor (normalizeColor -> color) (Solid raw) = unsafeFromAcquire do
   pure solid
 
 tagFaceNote :: String -> Solid -> Solid
-tagFaceNote note (Solid raw) = unsafeFromAcquire do
-  solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
+tagFaceNote note solid  = unsafeFromAcquire do
   liftIO $ withFaces_ solid $ \k -> modifyIORef' faceAttrsMap $ Map.alter (Just . combineNote note) k
   pure solid
 
@@ -338,6 +341,10 @@ addShapeWithFaceData doc solid faceData = do
           }
 
           if (notes[i] != nullptr && notes[i][0] != '\0') {
+            // Fallback for STEP export: persist note text as item name (NameMode),
+            // in addition to XCAF notes metadata.
+            TDataStd_Name::Set(faceLabel, TCollection_ExtendedString(notes[i]));
+
             auto aNote = notesTool->CreateComment(
               TCollection_ExtendedString(""),
               TCollection_ExtendedString(""),
@@ -372,6 +379,7 @@ writeXCAFToSTEP filepath doc =
       Handle(TDocStd_Document) docH((const TDocStd_Document*)$(void* doc));
       STEPCAFControl_Writer writer;
       writer.SetColorMode(true);
+      writer.SetNameMode(true);
       writer.Transfer(docH);
       writer.Write($(const char* fp));
       docH->DecrementRefCounter();
@@ -382,34 +390,39 @@ writeXCAFToSTEP filepath doc =
     }
   }|]
 
+mkTaggedColor :: V3 CDouble -> ExpQ
+mkTaggedColor color = [| $tagLoc . setColor color|]
+
+deriving instance Lift CDouble
+
 {- ORMOLU_DISABLE -}
 lightgray, gray, darkgray, yellow, gold, orange, pink, red,
   maroon, green, lime, darkgreen, skyblue, blue, darkblue,
   purple, violet, darkpurple, beige, brown, darkbrown, white,
-  black, magenta, raywhite :: Solid -> Solid
-lightgray = setColor (V3 200 200 200)
-gray = setColor (V3 130 130 130)
-darkgray = setColor (V3 80 80 80)
-yellow = setColor (V3 253 249 0)
-gold = setColor (V3 255 203 0)
-orange = setColor (V3 255 161 0)
-pink = setColor (V3 255 109 194)
-red = setColor (V3 230 41 55)
-maroon = setColor (V3 190 33 55)
-green = setColor (V3 0 228 48)
-lime = setColor (V3 0 158 47)
-darkgreen = setColor (V3 0 117 44)
-skyblue = setColor (V3 102 191 255)
-blue = setColor (V3 0 121 241)
-darkblue = setColor (V3 0 82 172)
-purple = setColor (V3 200 122 255)
-violet = setColor (V3 135 60 190)
-darkpurple = setColor (V3 112 31 126)
-beige = setColor (V3 211 176 131)
-brown = setColor (V3 127 106 79)
-darkbrown = setColor (V3 76 63 47)
-white = setColor (V3 255 255 255)
-black = setColor (V3 0 0 0)
-magenta = setColor (V3 255 0 255)
-raywhite = setColor (V3 245 245 245)
+  black, magenta, raywhite :: ExpQ
+lightgray = mkTaggedColor (V3 200 200 200)
+gray = mkTaggedColor (V3 130 130 130)
+darkgray = mkTaggedColor (V3 80 80 80)
+yellow = mkTaggedColor (V3 253 249 0)
+gold = mkTaggedColor (V3 255 203 0)
+orange = mkTaggedColor (V3 255 161 0)
+pink = mkTaggedColor (V3 255 109 194)
+red = mkTaggedColor (V3 230 41 55)
+maroon = mkTaggedColor (V3 190 33 55)
+green = mkTaggedColor (V3 0 228 48)
+lime = mkTaggedColor (V3 0 158 47)
+darkgreen = mkTaggedColor (V3 0 117 44)
+skyblue = mkTaggedColor (V3 102 191 255)
+blue = mkTaggedColor (V3 0 121 241)
+darkblue = mkTaggedColor (V3 0 82 172)
+purple = mkTaggedColor (V3 200 122 255)
+violet = mkTaggedColor (V3 135 60 190)
+darkpurple = mkTaggedColor (V3 112 31 126)
+beige = mkTaggedColor (V3 211 176 131)
+brown = mkTaggedColor (V3 127 106 79)
+darkbrown = mkTaggedColor (V3 76 63 47)
+white = mkTaggedColor (V3 255 255 255)
+black = mkTaggedColor (V3 0 0 0)
+magenta = mkTaggedColor (V3 255 0 255)
+raywhite = mkTaggedColor (V3 245 245 245)
 {- ORMOLU ENABLE -}
