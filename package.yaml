@@ -21,6 +21,26 @@ dependencies:
   - text
   - random
 
+default-extensions:
+  - BangPatterns
+  - BlockArguments
+  - ConstraintKinds
+  - DataKinds
+  - FlexibleContexts
+  - FlexibleInstances
+  - ForeignFunctionInterface
+  - MultiParamTypeClasses
+  - OverloadedStrings
+  - QuasiQuotes
+  - ScopedTypeVariables
+  - TemplateHaskell
+  - TupleSections
+  - TypeApplications
+  - TypeFamilies
+  - TypeOperators
+  - UndecidableInstances
+  - ViewPatterns
+
 library:
   source-dirs:
     - lib

@@ -25,6 +25,25 @@ library
       Paths_rapids
   hs-source-dirs:
       lib
+  default-extensions:
+      BangPatterns
+      BlockArguments
+      ConstraintKinds
+      DataKinds
+      FlexibleContexts
+      FlexibleInstances
+      ForeignFunctionInterface
+      MultiParamTypeClasses
+      OverloadedStrings
+      QuasiQuotes
+      ScopedTypeVariables
+      TemplateHaskell
+      TupleSections
+      TypeApplications
+      TypeFamilies
+      TypeOperators
+      UndecidableInstances
+      ViewPatterns
   build-depends:
       StateVar
     , base

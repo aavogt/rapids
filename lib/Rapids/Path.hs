@@ -1,5 +1,3 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 -- |  Waterfall suggests
 --
