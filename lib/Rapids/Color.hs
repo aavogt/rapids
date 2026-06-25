@@ -95,6 +95,13 @@ Cpp.include "<XCAFDoc_Note.hxx>"
 Cpp.include "<TCollection_ExtendedString.hxx>"
 Cpp.include "<TCollection_HAsciiString.hxx>"
 Cpp.include "<STEPCAFControl_Writer.hxx>"
+Cpp.include "<XSControl_WorkSession.hxx>"
+Cpp.include "<StepData_StepModel.hxx>"
+Cpp.include "<HeaderSection_FileDescription.hxx>"
+Cpp.include "<Interface_HArray1OfHAsciiString.hxx>"
+Cpp.include "<TDF_LabelSequence.hxx>"
+Cpp.include "<TDF_Tool.hxx>"
+Cpp.include "<TCollection_AsciiString.hxx>"
 Cpp.include "<Quantity_Color.hxx>"
 Cpp.include "<TDataStd_Name.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
@@ -379,8 +386,58 @@ writeXCAFToSTEP filepath doc =
       Handle(TDocStd_Document) docH((const TDocStd_Document*)$(void* doc));
       STEPCAFControl_Writer writer;
       writer.SetColorMode(true);
-      writer.SetNameMode(true);
-      writer.Transfer(docH);
+      writer.Transfer(docH, STEPControl_AsIs);
+
+      Handle(StepData_StepModel) model =
+        Handle(StepData_StepModel)::DownCast(writer.Writer().WS()->Model());
+
+      if (!model.IsNull()) {
+        auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(docH->Main());
+
+        std::vector<TCollection_AsciiString> descLines;
+
+        TDF_LabelSequence rootShapes;
+        shapeTool->GetShapes(rootShapes);
+        for (Standard_Integer r = 1; r <= rootShapes.Length(); ++r) {
+          const TDF_Label root = rootShapes.Value(r);
+
+          TDF_LabelSequence subLabels;
+          XCAFDoc_ShapeTool::GetSubShapes(root, subLabels);
+          for (Standard_Integer i = 1; i <= subLabels.Length(); ++i) {
+            const TDF_Label subL = subLabels.Value(i);
+            Handle(TDataStd_Name) nameAttr;
+            if (!subL.FindAttribute(TDataStd_Name::GetID(), nameAttr) || nameAttr.IsNull()) {
+              continue;
+            }
+
+            TCollection_AsciiString entry;
+            TDF_Tool::Entry(subL, entry);
+            TCollection_AsciiString note(nameAttr->Get());
+
+            TCollection_AsciiString line(entry);
+            line += ":";
+            line += note;
+            descLines.push_back(line);
+          }
+        }
+
+        if (!descLines.empty()) {
+          Handle(Interface_HArray1OfHAsciiString) descList =
+            new Interface_HArray1OfHAsciiString(1, (Standard_Integer)descLines.size());
+          for (Standard_Integer i = 1; i <= (Standard_Integer)descLines.size(); ++i) {
+            descList->SetValue(i, new TCollection_HAsciiString(descLines[(size_t)i - 1]));
+          }
+
+          Handle(HeaderSection_FileDescription) fd =
+            Handle(HeaderSection_FileDescription)::DownCast(
+              model->HeaderEntity(STANDARD_TYPE(HeaderSection_FileDescription)));
+
+          if (!fd.IsNull()) {
+            fd->SetDescription(descList);
+          }
+        }
+      }
+
       writer.Write($(const char* fp));
       docH->DecrementRefCounter();
     } catch (const Standard_Failure& e) {
