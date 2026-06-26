@@ -16,6 +16,7 @@ library
       Rapids
       Rapids.BoolOp
       Rapids.Color
+      Rapids.ConvexHull
       Rapids.IniVal
       Rapids.Path
       Rapids.Section
@@ -44,6 +45,8 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
+  pkgconfig-depends:
+      qhull_r
   build-depends:
       StateVar
     , base

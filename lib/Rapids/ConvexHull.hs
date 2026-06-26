@@ -1,0 +1,148 @@
+module Rapids.ConvexHull where
+
+import Foreign
+import InlineOCCT
+import qualified Language.C.Inline as C
+import qualified Language.C.Inline.Cpp as Cpp
+import Waterfall.Internal.Solid
+import Waterfall.Internal.Finalizers
+import Data.Acquire
+import OpenCascade.TopoDS (Shape)
+import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
+import qualified OpenCascade.BRepBuilderAPI.Copy as BRepBuilderAPI.Copy
+import Control.Monad.IO.Class
+
+C.context occtContext
+Cpp.include "libqhull_r/libqhull_r.h"
+Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
+Cpp.include "<BRepBuilderAPI_MakePolygon.hxx>"
+Cpp.include "<BRepBuilderAPI_MakeSolid.hxx>"
+Cpp.include "<BRepBuilderAPI_Sewing.hxx>"
+Cpp.include "<BRep_Tool.hxx>"
+Cpp.include "<TopAbs_ShapeEnum.hxx>"
+Cpp.include "<TopExp_Explorer.hxx>"
+Cpp.include "<TopoDS.hxx>"
+Cpp.include "<TopoDS_Shape.hxx>"
+Cpp.include "<TopoDS_Shell.hxx>"
+Cpp.include "<TopoDS_Vertex.hxx>"
+Cpp.include "<TopoDS_Wire.hxx>"
+Cpp.include "<gp_Pnt.hxx>"
+Cpp.include "<vector>"
+Cpp.include "<BRepBuilderAPI_Sewing.hxx>"
+
+-- | convex hull of a solid's vertices (ignoring edges for now)
+convexHull :: Solid -> Solid
+convexHull (Solid raw) = Solid $ unsafeFromAcquire $ do
+  solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
+  flip mkAcquire deleteShape [Cpp.block| TopoDS_Shape* {
+    std::vector<gp_Pnt> occtPoints;
+    std::vector<coordT> qhCoords;
+
+    TopExp_Explorer ex(* $solid:solid, TopAbs_VERTEX);
+    for (; ex.More(); ex.Next()) {
+      TopoDS_Vertex v = TopoDS::Vertex(ex.Current());
+      gp_Pnt p = BRep_Tool::Pnt(v);
+      occtPoints.push_back(p);
+      qhCoords.push_back((coordT)p.X());
+      qhCoords.push_back((coordT)p.Y());
+      qhCoords.push_back((coordT)p.Z());
+    }
+
+    int numPoints = (int)occtPoints.size();
+    if (numPoints < 4) {
+      return new TopoDS_Shape(* $solid:solid);
+    }
+
+    gp_Pnt hullCenter(0.0, 0.0, 0.0);
+    for (const gp_Pnt& p : occtPoints) {
+      hullCenter.SetX(hullCenter.X() + p.X());
+      hullCenter.SetY(hullCenter.Y() + p.Y());
+      hullCenter.SetZ(hullCenter.Z() + p.Z());
+    }
+    hullCenter.SetX(hullCenter.X() / numPoints);
+    hullCenter.SetY(hullCenter.Y() / numPoints);
+    hullCenter.SetZ(hullCenter.Z() / numPoints);
+
+    qhT qh_qh;
+    qhT *qh = &qh_qh;
+    qh_zero(qh, stderr);
+
+    int exitcode = qh_new_qhull(
+      qh,
+      3,
+      numPoints,
+      qhCoords.data(),
+      False,
+      (char*)"qhull Qt",
+      NULL,
+      stderr
+    );
+
+    if (exitcode != qh_ERRnone) {
+      int curlong = 0;
+      int totlong = 0;
+      qh_freeqhull(qh, !qh_ALL);
+      qh_memfreeshort(qh, &curlong, &totlong);
+      return new TopoDS_Shape(* $solid:solid);
+    }
+
+    BRepBuilderAPI_Sewing sewing(1.0e-7);
+
+    facetT *facet;
+    vertexT *vertex, **vertexp;
+    FORALLfacets {
+      if (facet->upperdelaunay) {
+        continue;
+      }
+
+      std::vector<int> ids;
+      FOREACHvertex_(facet->vertices) {
+        int id = qh_pointid(qh, vertex->point);
+        if (id >= 0 && id < numPoints) {
+          ids.push_back(id);
+        }
+      }
+
+      if (ids.size() != 3) {
+        continue;
+      }
+
+      BRepBuilderAPI_MakePolygon poly;
+      poly.Add(occtPoints[ids[0]]);
+      poly.Add(occtPoints[ids[1]]);
+      poly.Add(occtPoints[ids[2]]);
+      poly.Close();
+
+      if (!poly.IsDone()) {
+        continue;
+      }
+
+      TopoDS_Wire wire = poly.Wire();
+      BRepBuilderAPI_MakeFace mf(wire);
+      if (!mf.IsDone()) {
+        continue;
+      }
+
+      sewing.Add(mf);
+    }
+
+    sewing.Perform();
+    TopoDS_Shape sewed = sewing.SewedShape();
+
+    BRepBuilderAPI_MakeSolid ms;
+    TopExp_Explorer shellEx(sewed, TopAbs_SHELL);
+    for (; shellEx.More(); shellEx.Next()) {
+      ms.Add(TopoDS::Shell(shellEx.Current()));
+    }
+
+    int curlong = 0;
+    int totlong = 0;
+    qh_freeqhull(qh, !qh_ALL);
+    qh_memfreeshort(qh, &curlong, &totlong);
+
+    if (!ms.IsDone()) {
+      return new TopoDS_Shape(sewed);
+    }
+
+    return new TopoDS_Shape(ms);
+  } |]

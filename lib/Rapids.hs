@@ -18,6 +18,7 @@
 module Rapids
   ( module Rapids,
     module Rapids.Color,
+    module Rapids.ConvexHull,
     module Rapids.IniVal,
     module Rapids.Path,
     module Rapids.Section,
@@ -31,7 +32,7 @@ import Control.Applicative
 import Control.Lens hiding (prism)
 import Rapids.Color
 import Rapids.Section(section, sectionPerimeter)
-
+import Rapids.ConvexHull (convexHull)
 import Control.Monad
 import Data.IORef
 import Data.List (tails)

@@ -36,7 +36,7 @@ tt =
     [ (f "Vertex", [t|Ptr Vertex|]),
       (f "Pnt", [t|Ptr Pnt|]),
       (f "Dir", [t|Ptr Dir|]),
-      (f "Solid", [t|Ptr Shape|])
+      (f "TopoDS_Shape", [t|Shape|])
     ]
 
 f :: String -> TypeSpecifier

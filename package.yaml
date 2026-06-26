@@ -22,6 +22,9 @@ dependencies:
   - random
   - these
 
+pkg-config-dependencies:
+  - qhull_r
+
 default-extensions:
   - BangPatterns
   - BlockArguments
