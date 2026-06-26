@@ -107,10 +107,44 @@ convexHull (Solid raw) = Solid $ unsafeFromAcquire $ do
         continue;
       }
 
+      const gp_Pnt& p0 = occtPoints[ids[0]];
+      const gp_Pnt& p1 = occtPoints[ids[1]];
+      const gp_Pnt& p2 = occtPoints[ids[2]];
+
+      // Ensure consistent outward orientation for each facet.
+      // If normal points toward hullCenter, flip winding.
+      double ux = p1.X() - p0.X();
+      double uy = p1.Y() - p0.Y();
+      double uz = p1.Z() - p0.Z();
+      double vx = p2.X() - p0.X();
+      double vy = p2.Y() - p0.Y();
+      double vz = p2.Z() - p0.Z();
+
+      double nx = uy * vz - uz * vy;
+      double ny = uz * vx - ux * vz;
+      double nz = ux * vy - uy * vx;
+
+      double cx = (p0.X() + p1.X() + p2.X()) / 3.0;
+      double cy = (p0.Y() + p1.Y() + p2.Y()) / 3.0;
+      double cz = (p0.Z() + p1.Z() + p2.Z()) / 3.0;
+
+      double toCenterX = hullCenter.X() - cx;
+      double toCenterY = hullCenter.Y() - cy;
+      double toCenterZ = hullCenter.Z() - cz;
+
+      int i0 = ids[0];
+      int i1 = ids[1];
+      int i2 = ids[2];
+      double inwardDot = nx * toCenterX + ny * toCenterY + nz * toCenterZ;
+      if (inwardDot > 0.0) {
+        i1 = ids[2];
+        i2 = ids[1];
+      }
+
       BRepBuilderAPI_MakePolygon poly;
-      poly.Add(occtPoints[ids[0]]);
-      poly.Add(occtPoints[ids[1]]);
-      poly.Add(occtPoints[ids[2]]);
+      poly.Add(occtPoints[i0]);
+      poly.Add(occtPoints[i1]);
+      poly.Add(occtPoints[i2]);
       poly.Close();
 
       if (!poly.IsDone()) {
