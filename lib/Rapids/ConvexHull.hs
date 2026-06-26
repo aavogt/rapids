@@ -1,6 +1,7 @@
 module Rapids.ConvexHull where
 
 import Data.Acquire
+import Data.Maybe (mapMaybe)
 import Foreign
 import Foreign.C.Types
 import InlineOCCT
@@ -11,7 +12,8 @@ import OpenCascade.TopoDS (Shape)
 import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
 import Waterfall (Path)
 import Waterfall.Internal.Finalizers
-import Waterfall.Internal.Path (allPathEndpoints)
+import qualified Waterfall.Internal.Path as InternalPath
+import Waterfall.Internal.Path.Common (RawPath (..), rawPathWire)
 import Waterfall.Internal.Solid
 
 C.context occtContext
@@ -190,10 +192,10 @@ instance Hull [V3 Double] where
   hull = pointsHull
 
 instance Hull [Path] where
-  hull = pointsHull . concatMap pathPoints
+  hull = pathVerticesHull
 
 instance Hull Path where
-  hull = hull . (: [])
+  hull = pathVerticesHull . (: [])
 
 instance Hull Solid where
   hull = solidVerticesHull
@@ -223,8 +225,63 @@ pointsHull points = solidFromShape $ withArray coords $ \coordsPtr ->
     coords :: [CDouble]
     coords = concatMap (\(V3 x y z) -> [realToFrac x, realToFrac y, realToFrac z]) points
 
-pathPoints :: Path -> [V3 Double]
-pathPoints p = concatMap (\(a, b) -> [a, b]) (allPathEndpoints p)
+pathVerticesHull :: [Path] -> Solid
+pathVerticesHull paths = solidFromShape $ withArray wirePtrs $ \wiresPtr ->
+  withArray singlePointCoords $ \singlePointCoordsPtr ->
+    [Cpp.block| TopoDS_Shape* {
+      int numWires = $(int numWires);
+      void** wires = $(void** wiresPtr);
+
+      int numSinglePoints = $(int numSinglePoints);
+      double* singlePointCoords = $(double* singlePointCoordsPtr);
+
+      std::vector<gp_Pnt> occtPoints;
+
+      for (int i = 0; i < numSinglePoints; ++i) {
+        double x = singlePointCoords[3 * i + 0];
+        double y = singlePointCoords[3 * i + 1];
+        double z = singlePointCoords[3 * i + 2];
+        occtPoints.emplace_back(x, y, z);
+      }
+
+      for (int i = 0; i < numWires; ++i) {
+        TopoDS_Wire* wire = (TopoDS_Wire*)wires[i];
+        if (wire == nullptr) {
+          continue;
+        }
+
+        TopExp_Explorer ex(*wire, TopAbs_VERTEX);
+        for (; ex.More(); ex.Next()) {
+          TopoDS_Vertex v = TopoDS::Vertex(ex.Current());
+          gp_Pnt p = BRep_Tool::Pnt(v);
+          occtPoints.push_back(p);
+        }
+      }
+
+      return rapids_convex_hull_from_points(occtPoints, nullptr);
+    } |]
+  where
+    wirePtrs :: [Ptr ()]
+    wirePtrs = mapMaybe pathWirePtr paths
+
+    numWires :: CInt
+    numWires = fromIntegral (length wirePtrs)
+
+    singlePoints :: [V3 Double]
+    singlePoints = mapMaybe pathSinglePoint paths
+
+    numSinglePoints :: CInt
+    numSinglePoints = fromIntegral (length singlePoints)
+
+    singlePointCoords :: [CDouble]
+    singlePointCoords = concatMap (\(V3 x y z) -> [realToFrac x, realToFrac y, realToFrac z]) singlePoints
+
+pathWirePtr :: Path -> Maybe (Ptr ())
+pathWirePtr (InternalPath.Path raw) = castPtr <$> rawPathWire raw
+
+pathSinglePoint :: Path -> Maybe (V3 Double)
+pathSinglePoint (InternalPath.Path (SinglePointRawPath p)) = Just p
+pathSinglePoint _ = Nothing
 
 -- | convex hull of a solid's vertices
 solidVerticesHull :: Solid -> Solid
