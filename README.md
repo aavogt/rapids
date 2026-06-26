@@ -4,6 +4,11 @@ Simplify waterfall-cad expressions, which complicates types (and type errors).
 
   - `setColor :: V3 Double -> Solid -> Solid` propagates per-face through + - * to `mkStepWriterColor :: IO (Solid -> IO FilePath)`
   - `section :: Solid -> V3 Double -> V3 Double -> [Path]`
+  - convex hull of vertices contained within `Solid`, `[V3 Double]` `[Path]` or `Path`
+    - `hull :: Solid -> Solid`
+    - `hull :: [V3 Double] -> Solid`
+    - `hull :: [Path] -> Solid`
+    - `hull :: Path -> Solid`
   - `instance Num Solid` for `(+),(-),(*) :: Solid -> Solid -> Solid` [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
   - translate rotate rotateDeg scale mirror and mirrored convert arguments
   - `R.translate ey 1 == W.translate (V3 0 1 0)` here [ex ey ez from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex) decides the direction

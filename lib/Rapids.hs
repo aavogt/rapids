@@ -32,7 +32,7 @@ import Control.Applicative
 import Control.Lens hiding (prism)
 import Rapids.Color
 import Rapids.Section(section, sectionPerimeter)
-import Rapids.ConvexHull (convexHull)
+import Rapids.ConvexHull (Hull(..))
 import Control.Monad
 import Data.IORef
 import Data.List (tails)
