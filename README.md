@@ -12,7 +12,10 @@ Simplify waterfall-cad expressions, which complicates types (and type errors).
   - R.mirrored unions the original like Freecad's PartDesign::Mirrored
   - Rapids.Path lets you use do notation to construct paths for example [loophv](https://gist.github.com/aavogt/1b59c0d02c5bcc129d743042b99839f9#file-main-hs-L39)
 
-To see colors in step files, set the f3d configuration in `/etc/f3d/config.json` or [elsewhere](https://f3d.app/docs/user/CONFIGURATION_FILE/#locations) to the following:
+## viewers
+[aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker).
+
+Previously I used f3d which only displays colors with the following configuration in `/etc/f3d/config.json` or [elsewhere](https://f3d.app/docs/user/CONFIGURATION_FILE/#locations):
 ```json
 [{
   "match": ".*(step|stp|iges|igs|brep|xbf)",
