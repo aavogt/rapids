@@ -202,64 +202,39 @@ instance Hull Solid where
 
 -- | convex hull of a set of points
 pointsHull :: [V3 Double] -> Solid
-pointsHull points = solidFromShape $ withArray coords $ \coordsPtr ->
+pointsHull points = solidFromShape
   [Cpp.block| TopoDS_Shape* {
-    int numPoints = $(int numPoints);
-    double* coords = $(double* coordsPtr);
+    std::vector<gp_Pnt>* occtPoints = (std::vector<gp_Pnt>*)$pnts:points;
+    return rapids_convex_hull_from_points(*occtPoints, nullptr);
+  } |]
+
+pathVerticesHull :: [Path] -> Solid
+pathVerticesHull paths = solidFromShape $ withArray wirePtrs $ \wiresPtr ->
+  [Cpp.block| TopoDS_Shape* {
+    int numWires = $(int numWires);
+    void** wires = $(void** wiresPtr);
+
+    std::vector<gp_Pnt>* singlePointVec = (std::vector<gp_Pnt>*)$pnts:singlePoints;
 
     std::vector<gp_Pnt> occtPoints;
-    occtPoints.reserve(numPoints);
-    for (int i = 0; i < numPoints; ++i) {
-      double x = coords[3 * i + 0];
-      double y = coords[3 * i + 1];
-      double z = coords[3 * i + 2];
-      occtPoints.emplace_back(x, y, z);
+    occtPoints.insert(occtPoints.end(), singlePointVec->begin(), singlePointVec->end());
+
+    for (int i = 0; i < numWires; ++i) {
+      TopoDS_Wire* wire = (TopoDS_Wire*)wires[i];
+      if (wire == nullptr) {
+        continue;
+      }
+
+      TopExp_Explorer ex(*wire, TopAbs_VERTEX);
+      for (; ex.More(); ex.Next()) {
+        TopoDS_Vertex v = TopoDS::Vertex(ex.Current());
+        gp_Pnt p = BRep_Tool::Pnt(v);
+        occtPoints.push_back(p);
+      }
     }
 
     return rapids_convex_hull_from_points(occtPoints, nullptr);
   } |]
-  where
-    numPoints :: CInt
-    numPoints = fromIntegral (length points)
-
-    coords :: [CDouble]
-    coords = concatMap (\(V3 x y z) -> [realToFrac x, realToFrac y, realToFrac z]) points
-
-pathVerticesHull :: [Path] -> Solid
-pathVerticesHull paths = solidFromShape $ withArray wirePtrs $ \wiresPtr ->
-  withArray singlePointCoords $ \singlePointCoordsPtr ->
-    [Cpp.block| TopoDS_Shape* {
-      int numWires = $(int numWires);
-      void** wires = $(void** wiresPtr);
-
-      int numSinglePoints = $(int numSinglePoints);
-      double* singlePointCoords = $(double* singlePointCoordsPtr);
-
-      std::vector<gp_Pnt> occtPoints;
-
-      for (int i = 0; i < numSinglePoints; ++i) {
-        double x = singlePointCoords[3 * i + 0];
-        double y = singlePointCoords[3 * i + 1];
-        double z = singlePointCoords[3 * i + 2];
-        occtPoints.emplace_back(x, y, z);
-      }
-
-      for (int i = 0; i < numWires; ++i) {
-        TopoDS_Wire* wire = (TopoDS_Wire*)wires[i];
-        if (wire == nullptr) {
-          continue;
-        }
-
-        TopExp_Explorer ex(*wire, TopAbs_VERTEX);
-        for (; ex.More(); ex.Next()) {
-          TopoDS_Vertex v = TopoDS::Vertex(ex.Current());
-          gp_Pnt p = BRep_Tool::Pnt(v);
-          occtPoints.push_back(p);
-        }
-      }
-
-      return rapids_convex_hull_from_points(occtPoints, nullptr);
-    } |]
   where
     wirePtrs :: [Ptr ()]
     wirePtrs = mapMaybe pathWirePtr paths
@@ -269,12 +244,6 @@ pathVerticesHull paths = solidFromShape $ withArray wirePtrs $ \wiresPtr ->
 
     singlePoints :: [V3 Double]
     singlePoints = mapMaybe pathSinglePoint paths
-
-    numSinglePoints :: CInt
-    numSinglePoints = fromIntegral (length singlePoints)
-
-    singlePointCoords :: [CDouble]
-    singlePointCoords = concatMap (\(V3 x y z) -> [realToFrac x, realToFrac y, realToFrac z]) singlePoints
 
 pathWirePtr :: Path -> Maybe (Ptr ())
 pathWirePtr (InternalPath.Path raw) = castPtr <$> rawPathWire raw

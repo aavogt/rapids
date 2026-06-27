@@ -1,99 +1,35 @@
+module InlineOCCT (module InlineOCCT.Context, module InlineOCCT) where
 
-module InlineOCCT where
+import InlineOCCT.Context
+import qualified Language.C.Inline as C
+import qualified Language.C.Inline.Cpp as Cpp
 
-import Data.Acquire
-import qualified Data.Map as Map
-import Foreign hiding (with)
-import Language.C.Inline.Context
-import Language.C.Inline.Cpp
-import Language.C.Inline.HaskellIdentifier
-import Language.C.Types as C
-import Language.Haskell.TH as TH
-import OpenCascade.GP.Types
-import OpenCascade.TopoDS.Types
-import Waterfall.Internal.Solid
-import Waterfall.Internal.ToOpenCascade (v3ToDir, v3ToPnt, v3ToVertex)
+C.context occtContext
+Cpp.include "<gp_Pnt.hxx>"
 
-getHsVariable :: String -> HaskellIdentifier -> TH.ExpQ
-getHsVariable err s = do
-  mbHsName <- TH.lookupValueName $ unHaskellIdentifier s
-  case mbHsName of
-    Nothing ->
-      fail $
-        "Cannot capture Haskell variable "
-          ++ unHaskellIdentifier s
-          ++ ", because it's not in scope. ("
-          ++ err
-          ++ ")"
-    Just hsName -> TH.varE hsName
+-- these don't really belong here
+-- they are referenced in InlineOCCT.Context
+-- which defines occtContext which is needed to compile these
+c_newGpPntVector count p = [Cpp.block| void* {
+  std::vector<gp_Pnt>* points = new std::vector<gp_Pnt>();
+  int count = $(int count);
+  if (count > 0) {
+    points->reserve((size_t)count);
+  }
 
-occtContext :: Context
-occtContext = cppCtx {ctxTypesTable = ctxTypesTable cppCtx <> tt, ctxAntiQuoters = aq}
+  double * coords = $(double *p);
+  for (int i = 0; i < count; ++i) {
+    double x = coords[3 * i + 0];
+    double y = coords[3 * i + 1];
+    double z = coords[3 * i + 2];
+    points->emplace_back(x, y, z);
+  }
 
-tt :: TypesTable
-tt =
-  Map.fromList
-    [ (f "Vertex", [t|Ptr Vertex|]),
-      (f "Pnt", [t|Ptr Pnt|]),
-      (f "Dir", [t|Ptr Dir|]),
-      (f "TopoDS_Shape", [t|Shape|])
-    ]
+  return points;
+} |]
 
-f :: String -> TypeSpecifier
-f str = TypeName $ either (error "tt") id $ cIdentifierFromString True str
+c_deleteGpPntVector ptr = [Cpp.block| void {
+  std::vector<gp_Pnt>* points = (std::vector<gp_Pnt>*)$(void *ptr);
+  delete points;
+} |]
 
-p :: String -> C.Type i
-p str = Ptr [] (TypeSpecifier mempty (f str))
-
-aq :: AntiQuoters
-aq =
-  Map.fromList
-    [ ("dir", SomeAntiQuoter dirAntiQuoter),
-      ("pnt", SomeAntiQuoter pntAntiQuoter),
-      ("solid", SomeAntiQuoter solidAntiQuoter)
-    ]
-
-dirAntiQuoter :: AntiQuoter HaskellIdentifier
-dirAntiQuoter =
-  AntiQuoter
-    { aqParser = do
-        hId <- C.parseIdentifier
-        useCpp <- C.parseEnableCpp
-        let cId = mangleHaskellIdentifier useCpp hId
-        return (cId, p "gp_Dir", hId),
-      aqMarshaller = \_purity _cTypes _cTy cId -> do
-        hsExp <- getHsVariable "occtContext" cId
-        hsExp' <- [|with (v3ToDir $(return hsExp))|]
-        hsTy <- [t|Ptr Dir|]
-        return (hsTy, hsExp')
-    }
-
-pntAntiQuoter :: AntiQuoter HaskellIdentifier
-pntAntiQuoter =
-  AntiQuoter
-    { aqParser = do
-        hId <- C.parseIdentifier
-        useCpp <- C.parseEnableCpp
-        let cId = mangleHaskellIdentifier useCpp hId
-        return (cId, p "gp_Pnt", hId),
-      aqMarshaller = \_purity _cTypes _cTy cId -> do
-        hsExp <- getHsVariable "occtContext" cId
-        hsExp' <- [|with (v3ToPnt $(return hsExp))|]
-        hsTy <- [t|Ptr Pnt|]
-        return (hsTy, hsExp')
-    }
-
-solidAntiQuoter :: AntiQuoter HaskellIdentifier
-solidAntiQuoter =
-  AntiQuoter
-    { aqParser = do
-        hId <- C.parseIdentifier
-        useCpp <- C.parseEnableCpp
-        let cId = mangleHaskellIdentifier useCpp hId
-        return (cId, p "TopoDS_Shape", hId),
-      aqMarshaller = \_purity _cTypes _cTy cId -> do
-        hsExp <- getHsVariable "occtContext" cId
-        hsExp' <- [|with (acquireSolid $(return hsExp))|]
-        hsTy <- [t|Ptr Shape|]
-        return (hsTy, hsExp')
-    }

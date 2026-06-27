@@ -13,6 +13,7 @@ build-type:     Simple
 library
   exposed-modules:
       InlineOCCT
+      InlineOCCT.Context
       Rapids
       Rapids.BoolOp
       Rapids.Color
