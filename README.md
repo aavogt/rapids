@@ -36,6 +36,15 @@ Previously I used f3d which only displays colors with the following configuratio
  
 ## examples
 
-[square base flange](https://github.com/aavogt/battery-adapter/blob/main/main.hs) or as a [video](https://youtu.be/NTni_7p9clE)
-
 [hose barb union](https://gist.github.com/aavogt/6efaca22c6496ab21e6014f1c63a5a9b#file-main-hs)
+
+### loading step file, vertex convex hull
+
+![hull](http://aavogt.github.io/blog/images/hull.png)
+
+### ini file
+
+![](https://aavogt.github.io/blog/images/workflow_small_color.png)
+[square base flange](https://github.com/aavogt/battery-adapter/blob/main/main.hs) or as a [video](https://youtu.be/NTni_7p9clE)
+or [blog post](https://aavogt.github.io/blog/posts/2025-12-30-waterfall-cad-gcodeviewer.html)
+
