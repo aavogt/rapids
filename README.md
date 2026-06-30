@@ -8,7 +8,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `hull :: Solid       -> Solid`
     - `hull :: [V3 Double] -> Solid`
     - `hull :: [Path]      -> Solid`
-    - `hull :: Path       -> Solid`
+    - `hull :: Path        -> Solid`
   - `instance Num Solid` for `(+),(-),(*) :: Solid -> Solid -> Solid` for [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
   - translate rotate rotateDeg scale mirror and mirrored convert arguments according to:
     - `R.translate ey 1 == W.translate (V3 0 1 0)` here [ex ey ez from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex) decides the direction
