@@ -19,6 +19,9 @@ import Waterfall.Internal.Edges
 import Waterfall.Internal.Finalizers
 import Waterfall.Internal.Path
 import Waterfall.Internal.Path.Common
+import Control.Monad.IO.Class
+import Language.Haskell.TH (unsafe)
+import Rapids.With
 
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
@@ -70,13 +73,17 @@ sectionPerimeter solid n p =
  }
 |]
 
--- | @paths = section s n x@
+-- | @paths = section s ex x@
+--   @paths = section s n x@
 --
 -- section a solid @s@ with the plane defined by normal @n@ and point @x@,
--- returning all paths
-section :: Solid -> V3 Double -> V3 Double -> IO [Path]
-section solid n p =
-  [Cpp.block| void* {
+-- returning all paths that intersect
+section :: (WithPlane [Path] s) => Solid -> s
+section s = withPlane (sectionRaw s)
+
+sectionRaw :: Solid -> V3 Double -> V3 Double -> [Path]
+sectionRaw solid n p = unsafeFromAcquireT $
+  liftIO [Cpp.block| void* {
     gp_Pln pl = gp_Pln(* $pnt:p,* $dir:n);
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
     BRepAlgoAPI_Section section(* $solid:solid,planeFace);
@@ -88,8 +95,8 @@ section solid n p =
 
     return new TopoDS_Shape(section.Shape());
   } |]
-    <&> \raw ->
-      if raw == nullPtr then [] else recombine 1e-5 $ unsafeFromAcquireT $ allEdgesAsPaths raw
+    >>= \raw ->
+      if raw == nullPtr then return [] else recombine 1e-5 <$> allEdgesAsPaths raw
 
 -- | Waterfall.Internal.Edges.'allWires' doesn't find anything, allEdges finds the edges without connectivity,
 allEdgesAsPaths :: Ptr () -> Acquire [Path]
@@ -136,7 +143,7 @@ testNested :: IO Bool
 testNested = do
   let [a, b, c, d, e] = unitSphere : [uScale n unitSphere | n <- [2, 3, 4, 5]]
       abcde = e -- unions [ difference e d,  difference c b, a ]
-  sec <- section abcde (V3 1 0 0) 0
+  let sec = sectionRaw abcde (V3 1 0 0) 0
   print (map pathEndpoints sec)
   return True
 
@@ -154,7 +161,7 @@ oneCase base tol = do
   n0 <- randomNonZeroVec3
   let n = normalize n0
 
-  secPaths <- section base n p
+  let secPaths = sectionRaw base n p
   per1 <- sectionPerimeter base n p
 
   let per2 = sum (map Waterfall.pathLength3D secPaths)

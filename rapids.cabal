@@ -21,6 +21,7 @@ library
       Rapids.IniVal
       Rapids.Path
       Rapids.Section
+      Rapids.With
   other-modules:
       Paths_rapids
   autogen-modules:
