@@ -43,7 +43,7 @@ Cpp.include "<BRepGProp_Cinert.hxx>"
 -- giving the perimeter @p@ (strictly speaking, the total length of all wires in that plane)
 sectionPerimeter :: Solid -> V3 Double -> V3 Double -> IO CDouble
 sectionPerimeter solid n p =
-  [Cpp.block| double { 
+  [Cpp.block| double {
     gp_Pln pl = gp_Pln(* $pnt:p,* $dir:n);
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
     BRepAlgoAPI_Section section(* $solid:solid,planeFace);
