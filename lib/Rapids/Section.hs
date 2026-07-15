@@ -1,18 +1,15 @@
-
+{-# LANGUAGE QuasiQuotes #-}
 module Rapids.Section where
 
-import Control.Lens
 import Control.Monad
 import Data.Acquire (Acquire)
-import Data.Functor
-import Data.List hiding (union)
 import Data.Maybe
-import Foreign
+import Foreign hiding (rotate)
 import Foreign.C.Types
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
-import Linear
+import Linear hiding (rotate)
 import System.Random
 import Waterfall
 import Waterfall.Internal.Edges
@@ -21,7 +18,8 @@ import Waterfall.Internal.Path
 import Waterfall.Internal.Path.Common
 import Control.Monad.IO.Class
 import Language.Haskell.TH (unsafe)
-import Rapids.With
+import System.IO.Unsafe (unsafePerformIO)
+import Rapids.Path.Project
 
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
@@ -37,14 +35,14 @@ Cpp.include "<BRep_Tool.hxx>"
 Cpp.include "<TopExp_Explorer.hxx>"
 Cpp.include "<BRepGProp_Cinert.hxx>"
 
--- | @p = sectionPerimeter1 s n x@
+-- | @p = sectionPerimeter s@
 --
--- section a solid @s@ with the plane defined by normal @n@ and point @x@,
+-- section a solid @s@ with the xy plane
 -- giving the perimeter @p@ (strictly speaking, the total length of all wires in that plane)
-sectionPerimeter :: Solid -> V3 Double -> V3 Double -> IO CDouble
-sectionPerimeter solid n p =
+sectionPerimeter :: Solid -> CDouble
+sectionPerimeter solid = unsafePerformIO
   [Cpp.block| double {
-    gp_Pln pl = gp_Pln(* $pnt:p,* $dir:n);
+    gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
     BRepAlgoAPI_Section section(* $solid:solid,planeFace);
     section.Build();
@@ -73,18 +71,14 @@ sectionPerimeter solid n p =
  }
 |]
 
--- | @paths = section s ex x@
---   @paths = section s n x@
+-- | @paths = section s@
 --
--- section a solid @s@ with the plane defined by normal @n@ and point @x@,
+-- section a solid @s@ with the xy plane
 -- returning all paths that intersect
-section :: (WithPlane [Path] s) => Solid -> s
-section s = withPlane (sectionRaw s)
-
-sectionRaw :: Solid -> V3 Double -> V3 Double -> [Path]
-sectionRaw solid n p = unsafeFromAcquireT $
+section :: Solid -> [Path2D]
+section solid = fmap projectPath . unsafeFromAcquireT $
   liftIO [Cpp.block| void* {
-    gp_Pln pl = gp_Pln(* $pnt:p,* $dir:n);
+    gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
     BRepAlgoAPI_Section section(* $solid:solid,planeFace);
     section.Build();
@@ -143,7 +137,7 @@ testNested :: IO Bool
 testNested = do
   let [a, b, c, d, e] = unitSphere : [uScale n unitSphere | n <- [2, 3, 4, 5]]
       abcde = e -- unions [ difference e d,  difference c b, a ]
-  let sec = sectionRaw abcde (V3 1 0 0) 0
+  let sec = section abcde
   print (map pathEndpoints sec)
   return True
 
@@ -156,15 +150,16 @@ testPerimetersEqual = do
   and <$> replicateM samples (oneCase base tol)
 
 oneCase :: Solid -> Double -> IO Bool
-oneCase base tol = do
+oneCase base0 tol = do
   p <- randomVec3
   n0 <- randomNonZeroVec3
   let n = normalize n0
 
-  let secPaths = sectionRaw base n p
-  per1 <- sectionPerimeter base n p
+  let base = translate p $ rotate n (norm n0) base0
+  let secPaths = section base
+      per1 = sectionPerimeter base
 
-  let per2 = sum (map Waterfall.pathLength3D secPaths)
+  let per2 = sum (map Waterfall.pathLength2D secPaths)
 
   let ok = approx tol (realToFrac per1) per2
   unless ok $ do

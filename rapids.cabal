@@ -22,7 +22,6 @@ library
       Rapids.Path
       Rapids.Path.Project
       Rapids.Section
-      Rapids.With
   other-modules:
       Paths_rapids
   autogen-modules:
