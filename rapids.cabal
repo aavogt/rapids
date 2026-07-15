@@ -20,6 +20,7 @@ library
       Rapids.ConvexHull
       Rapids.IniVal
       Rapids.Path
+      Rapids.Path.Project
       Rapids.Section
       Rapids.With
   other-modules:

@@ -25,6 +25,7 @@ module Rapids
     module Linear,
     module Control.Lens,
     module Waterfall,
+    projectPath,
   )
 where
 
@@ -41,6 +42,7 @@ import GHC.TypeLits
 import Linear hiding (rotate)
 import Rapids.IniVal
 import Rapids.Path
+import Rapids.Path.Project
 import System.Directory
 import System.FilePath
 import Waterfall hiding
@@ -388,6 +390,8 @@ class ToPath a where toPath :: a -> Path
 instance ToShape Shape where toShape = id
 
 instance ToShape Path2D where toShape = makeShape
+
+instance ToShape Path where toShape = makeShape . projectPath
 
 instance (Double ~ d) => ToShape [V2 d] where toShape abspts = makeShape $ mconcat [line a b :: Path2D | a : b : _ <- tails abspts]
 
