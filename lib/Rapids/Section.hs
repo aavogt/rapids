@@ -96,7 +96,7 @@ sectionRaw solid n p = unsafeFromAcquireT $
     return new TopoDS_Shape(section.Shape());
   } |]
     >>= \raw ->
-      if raw == nullPtr then return [] else recombine 1e-5 <$> allEdgesAsPaths raw
+      if raw == nullPtr then return [] else recombine 1e-7 <$> allEdgesAsPaths raw
 
 -- | Waterfall.Internal.Edges.'allWires' doesn't find anything, allEdges finds the edges without connectivity,
 allEdgesAsPaths :: Ptr () -> Acquire [Path]
