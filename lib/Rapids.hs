@@ -207,8 +207,13 @@ class Scale a where
   --
   -- > scale v3
   -- > scale x y z
+  -- > scale xy z
   -- > scale ex x
   -- > scale ey y
+  --
+  -- > v3 :: V3 Double
+  -- > x,y,z,xy :: Double
+  -- > ex, ey :: E V3
   scale :: a
 
 instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, PropagateColor a, a' ~ a) => Scale (E v -> amt -> a -> a') where
@@ -216,6 +221,9 @@ instance {-# INCOHERENT #-} (v ~ V3, amt ~ Double, PropagateColor a, a' ~ a) => 
 
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => Scale (x -> y -> z -> a -> a') where
   scale x y z a = propagateColor (W.scale (V3 x y z)) a
+
+instance {-# INCOHERENT #-} (xy ~ Double, z ~ Double, PropagateColor a, a' ~ a) => Scale (xy -> z -> a -> a') where
+  scale xy z a = propagateColor (W.scale (V3 xy xy z)) a
 
 instance {-# OVERLAPS #-} (PropagateColor a, a' ~ a, Double ~ d) => Scale (d -> a -> a') where
   scale xyz a = propagateColor (W.scale (V3 xyz xyz xyz)) a
