@@ -67,7 +67,7 @@ lineRelative3D delta = do
 arcVia3D :: V3 Double -> V3 Double -> PathState ()
 arcVia3D via end = do
   (start, _) <- get
-  appendPath (W.arcVia3D via end start)
+  appendPath (W.arcVia3D start via end)
 
 arcViaTo3D :: V3 Double -> V3 Double -> PathState ()
 arcViaTo3D via end = do
@@ -82,7 +82,7 @@ arcViaRelative3D viaDelta endDelta = do
 bezier3D :: V3 Double -> V3 Double -> V3 Double -> PathState ()
 bezier3D c1 c2 end = do
   (start, _) <- get
-  appendPath (W.bezier3D c1 c2 end start)
+  appendPath (W.bezier3D start c1 c2 end)
 
 bezierTo3D :: V3 Double -> V3 Double -> V3 Double -> PathState ()
 bezierTo3D c1 c2 end = do
@@ -174,7 +174,7 @@ lineRelative2D delta = do
 arcVia2D :: V2 Double -> V2 Double -> PathState2 ()
 arcVia2D via end = do
   (start, _) <- get
-  appendPath2D (W.arcVia2D via end start)
+  appendPath2D (W.arcVia2D start via end)
 
 arcViaTo2D :: V2 Double -> V2 Double -> PathState2 ()
 arcViaTo2D via end = do
@@ -189,7 +189,7 @@ arcViaRelative2D viaDelta endDelta = do
 bezier2D :: V2 Double -> V2 Double -> V2 Double -> PathState2 ()
 bezier2D c1 c2 end = do
   (start, _) <- get
-  appendPath2D (W.bezier2D c1 c2 end start)
+  appendPath2D (W.bezier2D start c1 c2 end)
 
 bezierTo2D :: V2 Double -> V2 Double -> V2 Double -> PathState2 ()
 bezierTo2D c1 c2 end = do
