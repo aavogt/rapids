@@ -233,3 +233,4 @@ takePathFraction2D :: Double -> PathState2 ()
 takePathFraction2D fraction = _2 %= W.takePathFraction2D fraction
 
 execPathState0 cmds = cmds `execState` (0, mempty) & snd
+execPathState cmds path = cmds `execState` (path, mempty) & snd
