@@ -21,6 +21,7 @@ library
       Rapids.IniVal
       Rapids.Path
       Rapids.Path.Project
+      Rapids.Revolution
       Rapids.Section
   other-modules:
       Paths_rapids

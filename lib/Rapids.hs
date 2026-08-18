@@ -22,6 +22,7 @@ module Rapids
     module Rapids.IniVal,
     module Rapids.Path,
     module Rapids.Section,
+    module Rapids.Revolution,
     module Linear,
     module Control.Lens,
     module Waterfall,
@@ -34,6 +35,7 @@ import Control.Lens hiding (prism)
 import Rapids.Color
 import Rapids.Section(section, sectionPerimeter)
 import Rapids.ConvexHull (Hull(..))
+import Rapids.Revolution (revolution, sector)
 import Control.Monad
 import Data.IORef
 import Data.List (tails)
@@ -102,6 +104,7 @@ import Waterfall hiding
     scale2D,
     translate2D,
     intersections,
+    revolution,
   )
 import qualified Waterfall as W
 
