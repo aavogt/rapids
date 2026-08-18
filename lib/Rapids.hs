@@ -107,6 +107,7 @@ import Waterfall hiding
     revolution,
   )
 import qualified Waterfall as W
+import Data.Fixed (mod')
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
@@ -171,16 +172,19 @@ class Rotate a where
   rotate :: a
 
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (x -> y -> z -> ang -> a -> a') where
-  rotate x y z ang a = propagateColor (W.rotate (V3 x y z) ang) a
+  rotate x y z ang a = propagateColor (W.rotate (V3 x y z) (mod2pi ang)) a
+
+mod2pi :: Double -> Double
+mod2pi a = a `mod'` (2*pi)
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (V3 d -> ang -> a -> a') where
-  rotate v ang a = propagateColor (W.rotate v ang) a
+  rotate v ang a = propagateColor (W.rotate v (mod2pi ang)) a
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, PropagateColor a, a' ~ a) => Rotate (Quaternion d -> a -> a') where
   rotate q a = propagateColor (W.rotate (q ^. _yzw) (acos (q ^. _x))) a
 
 instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (E v -> ang -> a -> a') where
-  rotate (E e) ang a = propagateColor (W.rotate (0 & e .~ 1) ang) a
+  rotate (E e) ang a = propagateColor (W.rotate (0 & e .~ 1) (mod2pi ang)) a
 
 -- | Rotate by degrees around an axis specified in one of these ways:
 class RotateBy a where
@@ -192,17 +196,20 @@ class RotateBy a where
   -- > rotateDeg ey deg
   rotateDeg :: a
 
+fromDeg :: Double -> Double
+fromDeg a = mod2pi (a * pi / 180)
+
 instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => RotateBy (x -> y -> z -> deg -> a -> a') where
-  rotateDeg x y z p a = propagateColor (W.rotate (V3 x y z) (p * pi / 180)) a
+  rotateDeg x y z d a = propagateColor (W.rotate (V3 x y z) (fromDeg d)) a
 
 instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateBy (V3 d -> deg -> a -> a') where
-  rotateDeg v p a = propagateColor (W.rotate v (p * pi / 180)) a
+  rotateDeg v d a = propagateColor (W.rotate v (fromDeg d)) a
 
 instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateBy (Quaternion d -> deg -> a -> a') where
-  rotateDeg q p = propagateColor (W.rotate (q ^. _yzw) (p * pi / 180))
+  rotateDeg q d = propagateColor (W.rotate (q ^. _yzw) (fromDeg d))
 
 instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
-  rotateDeg (E e) p a = propagateColor (W.rotate (0 & e .~ 1) (p * pi / 180)) a
+  rotateDeg (E e) d a = propagateColor (W.rotate (0 & e .~ 1) (fromDeg d)) a
 
 -- | Scale x y z axes
 class Scale a where
