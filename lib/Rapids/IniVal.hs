@@ -1,4 +1,4 @@
-
+{-# OPTIONS_GHC -Wno-missing-fields #-}
 module Rapids.IniVal (iniVal) where
 
 import Control.Lens
