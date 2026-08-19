@@ -19,10 +19,12 @@ library
       Rapids.Color
       Rapids.ConvexHull
       Rapids.IniVal
+      Rapids.Offset
       Rapids.Path
       Rapids.Path.Project
       Rapids.Revolution
       Rapids.Section
+      Rapids.Statistics
   other-modules:
       Paths_rapids
   autogen-modules:

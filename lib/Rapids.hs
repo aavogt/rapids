@@ -22,7 +22,9 @@ module Rapids
     module Rapids.IniVal,
     module Rapids.Path,
     module Rapids.Section,
+    module Rapids.Statistics,
     module Rapids.Revolution,
+    module Rapids.Offset,
     module Linear,
     module Control.Lens,
     module Waterfall,
@@ -36,6 +38,8 @@ import Rapids.Color
 import Rapids.Section(section, sectionPerimeter)
 import Rapids.ConvexHull (Hull(..))
 import Rapids.Revolution (revolution, sector)
+import Rapids.Offset (offset, offsetWithTolerance, tryOffset, tryOffsetWithTolerance)
+import Rapids.Statistics
 import Control.Monad
 import Data.IORef
 import Data.List (tails)
@@ -48,7 +52,12 @@ import Rapids.Path.Project
 import System.Directory
 import System.FilePath
 import Waterfall hiding
-  (unions, appendPath,
+  ( offset,
+    offsetWithTolerance,
+    tryOffset,
+    tryOffsetWithTolerance,
+    volume,
+    unions,
     appendPath2D,
     appendSegment,
     appendSegment2D,
