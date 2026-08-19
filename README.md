@@ -4,6 +4,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
 
   - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L456) `$red :: Solid -> Solid` propagate colors and source locations per-face through + - * to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for display by [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker)
   - `section :: Solid -> [Path2D]` slice the solid with XY plane
+  - `revolution :: Path2D -> Solid` `sector :: Double -> Path2D -> Solid`
   - meshed convex hull of vertices contained within `Solid`, `[V3 Double]` `[Path]` or `Path`. In other words:
     - `hull :: Solid       -> Solid`
     - `hull :: [V3 Double] -> Solid`
