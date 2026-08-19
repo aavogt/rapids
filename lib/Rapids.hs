@@ -427,3 +427,5 @@ instance Num Shape where
   (-) = W.difference
   (*) = W.intersection
   fromInteger i = rectangle (fromInteger i) (fromInteger i)
+  abs = error "instance Num Shape missing abs"
+  signum = error "instance Num Shape missing signum"
