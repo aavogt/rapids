@@ -1,18 +1,13 @@
 {-# LANGUAGE QuasiQuotes #-}
+{- HLINT ignore "Eta reduce" -}
 
-module Rapids.Offset
-  ( offset,
-    offsetWithTolerance,
-    tryOffset,
-    tryOffsetWithTolerance,
-  )
-where
+module Rapids.Offset where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Acquire (mkAcquire)
 import Data.Either (fromRight)
 import Foreign
-import Foreign.C.Types (CDouble)
+import Foreign.C.Types (CDouble, CBool)
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
@@ -44,8 +39,8 @@ Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 
 -- | Offset every solid component and retain a compound when there are many.
-offsetShape :: Double -> Double -> Solid -> IO (Ptr Shape)
-offsetShape tolerance value solid =
+offsetShape :: Double -> Double -> CBool -> Solid -> IO (Ptr Shape)
+offsetShape tolerance value arcIntersection solid =
   [Cpp.block| TopoDS_Shape* {
     TopoDS_Shape* result = new TopoDS_Shape();
     TopoDS_Shape* input = $solid:solid;
@@ -70,7 +65,7 @@ offsetShape tolerance value solid =
           BRepOffset_Skin,
           Standard_False,
           Standard_False,
-          GeomAbs_Arc,
+          $(bool arcIntersection) ? GeomAbs_Arc : GeomAbs_Intersection,
           Standard_False);
 
         TopoDS_Shape offsetShape = offset.Shape();
@@ -114,23 +109,40 @@ offsetShape tolerance value solid =
     tolerance' :: CDouble
     tolerance' = realToFrac tolerance
 
-offsetWithTolerance :: Double -> Double -> Solid -> Solid
-offsetWithTolerance tolerance value solid
+offsetWithTolerance :: Double -> Double -> CBool -> Solid -> Solid
+offsetWithTolerance tolerance value arcIntersection solid
   | nearZero value = solid
   | otherwise =
       fromRight emptySolid $
         solidFromAcquireWithCatch $
-          mkAcquire (offsetShape tolerance value solid) deleteShape
+          mkAcquire (offsetShape tolerance value arcIntersection solid) deleteShape
 
-offset :: Double -> Solid -> Solid
-offset = offsetWithTolerance 1e-6
 
-tryOffsetWithTolerance :: Double -> Double -> Solid -> Either WaterfallError Solid
-tryOffsetWithTolerance tolerance value solid
+class Offset a where
+  -- |
+  --
+  -- > offset amount solid
+  -- > offset amount 1 solid -- same
+  -- > offset amount 0 solid -- sharp corners
+  offset :: Double -> a
+
+-- | rounded corners by default
+instance {-# INCOHERENT #-} (a ~ Solid, a ~ a') => Offset (a -> a') where
+  offset amount solid = offsetWithTolerance 1e-6 amount 1 solid
+
+-- |
+--
+-- > offset amount 0 -- sharp
+-- > offset amount 1 -- rounded
+instance (b ~ CBool, a ~ Solid, a ~ a') => Offset (b -> a -> a') where
+  offset = offsetWithTolerance 1e-6
+
+tryOffsetWithTolerance :: Double -> Double -> CBool -> Solid -> Either WaterfallError Solid
+tryOffsetWithTolerance tolerance value arcIntersection solid
   | nearZero value = Right solid
   | otherwise =
       solidFromAcquireWithCatch $
-        mkAcquire (offsetShape tolerance value solid) deleteShape
+        mkAcquire (offsetShape tolerance value arcIntersection solid) deleteShape
 
-tryOffset :: Double -> Solid -> Either WaterfallError Solid
+tryOffset :: Double -> CBool -> Solid -> Either WaterfallError Solid
 tryOffset = tryOffsetWithTolerance 1e-6

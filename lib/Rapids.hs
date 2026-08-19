@@ -38,7 +38,7 @@ import Rapids.Color
 import Rapids.Section(section, sectionPerimeter)
 import Rapids.ConvexHull (Hull(..))
 import Rapids.Revolution (revolution, sector)
-import Rapids.Offset (offset, offsetWithTolerance, tryOffset, tryOffsetWithTolerance)
+import Rapids.Offset (Offset(offset), offsetWithTolerance, tryOffset, tryOffsetWithTolerance)
 import Rapids.Statistics
 import Control.Monad
 import Data.IORef
