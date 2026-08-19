@@ -50,3 +50,7 @@ Previously I used f3d which only displays colors with the following configuratio
 [square base flange](https://github.com/aavogt/battery-adapter/blob/main/main.hs) or as a [video](https://youtu.be/NTni_7p9clE)
 or [blog post](https://aavogt.github.io/blog/posts/2025-12-30-waterfall-cad-gcodeviewer.html)
 
+## testing
+
+cd test && make
+cd test && cabal run statistics
