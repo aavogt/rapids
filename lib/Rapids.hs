@@ -334,6 +334,11 @@ instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, Num s, Propagat
 -- | needed for `instance Mirrored (_ -> Path -> Path)`
 instance Num Path where
   (+) = (<>)
+  (-) = error "Num Path missing -"
+  (*) = error "Num Path missing *"
+  fromInteger = error "Num Path missing fromInteger"
+  signum = error "Num Path missing signum"
+  abs = error "Num Path missing abs"
 
 -- (-) could remove points, but maybe it needs to defer evaluation ie. store a sign bool (Bool, Path)
 -- because x + (0 - x) is supposed to work?
