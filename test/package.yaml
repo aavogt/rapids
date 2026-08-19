@@ -1,0 +1,17 @@
+dependencies:
+  - base
+  - rapids
+  - waterfall-cad
+
+library:
+  source-dirs: lib
+
+executables:
+  volume_offset:
+    main: volume_offset.hs
+    dependencies:
+      - test
+  statistics:
+    main: statistics.hs
+    dependencies:
+      - test
