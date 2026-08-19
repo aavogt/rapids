@@ -57,6 +57,8 @@ import Waterfall hiding
     tryOffset,
     tryOffsetWithTolerance,
     volume,
+    centerOfMass,
+    momentOfInertia,
     unions,
     appendPath2D,
     appendSegment,
