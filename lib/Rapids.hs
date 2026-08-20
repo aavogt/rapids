@@ -256,7 +256,7 @@ instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, v ~ V3, ang ~ Double, Pr
   _rotated (E e) ang = iso (rotate (E e) ang :: a' -> a) (rotate (E e) (-ang) :: a -> a')
 
 -- | Rotate by degrees around an axis specified in one of these ways:
-class RotateBy a where
+class RotateDeg a where
   -- | @rotateDeg@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
   --
   -- > rotateDeg x y z deg
@@ -268,16 +268,16 @@ class RotateBy a where
 fromDeg :: Double -> Double
 fromDeg a = mod2pi (a * pi / 180)
 
-instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => RotateBy (x -> y -> z -> deg -> a -> a') where
+instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => RotateDeg (x -> y -> z -> deg -> a -> a') where
   rotateDeg x y z d a = propagateColor (W.rotate (V3 x y z) (fromDeg d)) a
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateBy (V3 d -> deg -> a -> a') where
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateDeg (V3 d -> deg -> a -> a') where
   rotateDeg v d a = propagateColor (W.rotate v (fromDeg d)) a
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateBy (Quaternion d -> deg -> a -> a') where
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateDeg (Quaternion d -> deg -> a -> a') where
   rotateDeg q d = propagateColor (W.rotate (q ^. _yzw) (fromDeg d))
 
-instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
+instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateDeg (E v -> deg -> a -> a') where
   rotateDeg (E e) d a = propagateColor (W.rotate (0 & e .~ 1) (fromDeg d)) a
 
 -- \| @rotateDeg@ expressions of type 'Transformable' @a => Iso' a a@ (probably Iso 'Solid' 'Solid')
