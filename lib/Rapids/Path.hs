@@ -15,8 +15,7 @@
 --
 -- or execPathState0 to start with mempty/zero/origin
 module Rapids.Path
-  ( execPathState0,
-    module Rapids.Path,
+  ( module Rapids.Path,
 
     -- * reexports
     execState,
