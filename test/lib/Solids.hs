@@ -1,9 +1,15 @@
+{-# LANGUAGE BlockArguments #-}
 module Solids where
 import Rapids
 
 bowtie = revolution (pi/4) profile
 
-profile = execPathState0 $ do r a; u b; l (2*a); d b; closeLoop2D
+profile = execPathState0 do
+  r a
+  u b
+  l (2*a)
+  d b
+  closeLoop2D
 
 a = 1
 b = 0.5

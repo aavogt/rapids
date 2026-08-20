@@ -2,9 +2,19 @@
 
 Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-warren/opencascade-hs), where I add missing operations and other quality-of-life features:
 
-  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L456) `$red :: Solid -> Solid` propagate colors and source locations per-face through + - * to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for display by [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker)
+  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L456) `$red :: Solid -> Solid` propagate colors and source locations per-face through most 3d operations to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for display by [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker)
+  - "any `ToPath`" means `[V2 Double]`, `[V3 Double]` or `Path`
+  - "any `ToShape` means `[V2 Double]`, `Path2D`,  `Shape` or `Path`
   - `section :: Solid -> [Path2D]` slice the solid with XY plane
-  - `revolution :: Path2D -> Solid` `sector :: Double -> Path2D -> Solid`
+  - `pad` turns any `ToShape` into a `Solid`:
+    - `pad z = Waterfall.prism`
+    - `pad z taperFrac`
+    - `pad x y z`
+    - `pad x y z taperFrac`
+    - `pad v`
+    - `pad v taperFrac`
+  - `sweep path shape`
+  - `revolution :: ToPath p => Double -> p -> Solid` for a sector or `revolution :: Path2D -> Solid` for 2pi
   - meshed convex hull of vertices contained within `Solid`, `[V3 Double]` `[Path]` or `Path`. In other words:
     - `hull :: Solid       -> Solid`
     - `hull :: [V3 Double] -> Solid`
@@ -13,16 +23,32 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
   - `instance Num Solid` for `(+),(-),(*) :: Solid -> Solid -> Solid` for [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
   - transformations
     - `translate` `rotate` `rotateDeg` `scale` `mirror`  produce `Solid->Solid`
-    - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  add the original solid
+    - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  keep the original solid
     - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce `Iso' Solid Solid`
-
-  and `mirrored` convert arguments according to:
-    - `R.translate ey 1 == W.translate (V3 0 1 0)` here [ex ey ez from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex) decides the direction
-    - three doubles are packed `R.translate x y z == W.translate (V3 x y z)`
-    - V3 double is unchanged `R.translate xyz = W.translate xyz`
-    - `scale xy z` short for `scale xy xy z`
-  - R.mirrored unions the original like Freecad's PartDesign::Mirrored
-  - Rapids.Path lets you use do notation to construct paths for example [loophv](https://gist.github.com/aavogt/1b59c0d02c5bcc129d743042b99839f9#file-main-hs-L39)
+  - overloaded transformations accept [ex ey ez from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex), [`q :: Quaternion Double`](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-Quaternion.html#t:Quaternion), `x, y, z, radians  :: Double`, `v3 :: V3 Double`. Example expressions of type `Solid -> Solid`:
+```
+      translate x y z
+      translate v3
+      translate ex x
+      translate ey y
+      translate ez z
+      mirror v3
+      mirror x y z
+      mirror ex x
+      mirror ey y
+      mirror ez z
+      mirror ex ey ez = mirror ex . mirror ey . mirror ez
+      rotate x y z radians
+      rotate v     radians
+      rotate q
+      rotate ex    radians
+      scale v3
+      scale x y z
+      scale xy z
+      scale ex x
+      scale ey y
+```
+  - Rapids.Path lets you use do notation to construct paths for example [loophv](https://gist.github.com/aavogt/1b59c0d02c5bcc129d743042b99839f9#file-main-hs-L39) or [do notation for paths](http://github.com/aavogt/rapids/blob/main/test/lib/Solids.hs)
 
 ## viewers
 [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker).
