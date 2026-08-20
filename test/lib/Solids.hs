@@ -1,7 +1,7 @@
 module Solids where
 import Rapids
 
-bowtie = sector (pi/4) profile
+bowtie = revolution (pi/4) profile
 
 profile = execPathState0 $ do r a; u b; l (2*a); d b; closeLoop2D
 

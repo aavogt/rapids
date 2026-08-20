@@ -52,7 +52,7 @@ import Rapids.IniVal
 import Rapids.Offset (Offset (offset), offsetWithTolerance, tryOffset, tryOffsetWithTolerance)
 import Rapids.Path
 import Rapids.Path.Project
-import Rapids.Revolution (revolution, sector)
+import Rapids.Revolution (Revolution(..))
 import Rapids.Section (section, sectionPerimeter)
 import Rapids.Statistics
 import System.Directory

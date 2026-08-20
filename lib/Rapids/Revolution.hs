@@ -1,10 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module Rapids.Revolution
-  ( revolution,
-    sector,
-  )
-where
+module Rapids.Revolution where
 
 import Data.Acquire (mkAcquire)
 import Foreign hiding (rotate)
@@ -42,17 +38,25 @@ Cpp.include "<gp_Ax1.hxx>"
 Cpp.include "<gp_Dir.hxx>"
 Cpp.include "<gp_Pnt.hxx>"
 
--- | Construct a full 'Solid' of revolution from a 'Path2D'.
---
--- The path is revolved about the y axis and the resulting solid is rotated
--- so that its axis of revolution is the z axis.
-revolution :: Path2D -> Solid
-revolution = sector (2 * pi)
+class Revolution a where
+  -- | rotate around the profile y axis (which becomes the solid z axis) with
+  -- an optional angle for how far around the axis to go (clockwise with the
+  -- camera pointed down (towards z= -infinity))
+  --
+  -- > revolution profile
+  -- > revolution radians profile
+  revolution :: a
+
+instance (ToShape profile, Solid ~ solid) => Revolution (profile -> solid) where
+  revolution = unions . map (sector (2*pi)) . shapePaths . toShape
+
+instance {-# INCOHERENT #-} (ToShape profile, radians ~ Double, solid ~ Solid) => Revolution (radians -> profile -> solid) where
+  revolution radians = unions . map (sector radians) . shapePaths . toShape
 
 -- | Construct a sector of a 'Solid' of revolution from a 'Path2D'.
 --
 -- The angle is in radians. The path is revolved about the y axis and the
--- resulting solid is rotated so that its axis of revolution is the z axis.
+-- resulting solid is rotated around the x axis so that its axis of revolution is the z axis.
 sector :: Double -> Path2D -> Solid
 sector angle (Path2D (ComplexRawPath rawPath)) =
   rotate (unit _x) (pi / 2) . solidFromShape $
