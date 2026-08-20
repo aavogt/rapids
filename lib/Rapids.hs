@@ -118,10 +118,14 @@ import Waterfall hiding
     unions,
     volume,
     _mirrored,
+    _rotated,
+    _scaled,
+    _scaled2D,
     _translated,
     _translated2D,
   )
 import qualified Waterfall as W
+import qualified Waterfall.Internal.NearZero as WNZ
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
@@ -192,6 +196,18 @@ instance {-# OVERLAPPABLE #-} (d ~ Double, Transformable2D a, a ~ a') => Transla
 instance {-# OVERLAPPABLE #-} (v ~ V2, amt ~ Double, Transformable2D a, a' ~ a) => Translate2D (E v -> amt -> a -> a') where
   translate2D (E e) amt a = W.translate2D (0 & e .~ amt) a
 
+class Translated2D a where
+  _translated2D :: a
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, d ~ Double, e ~ Double, Transformable2D a, a' ~ a) => Translated2D (d -> e -> Optic' p g a a') where
+  _translated2D x y = iso (translate2D x y :: a' -> a) (translate2D (-x) (-y) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, d ~ Double, Transformable2D a, a ~ a') => Translated2D (V2 d -> Optic' p g a a') where
+  _translated2D v = iso (translate2D v :: a' -> a) (translate2D (-v) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, v ~ V2, amt ~ Double, Transformable2D a, a' ~ a) => Translated2D (E v -> amt -> Optic' p g a a') where
+  _translated2D (E e) amt = iso (translate2D (0 & e .~ amt) :: a' -> a) (translate2D (0 & e .~ -amt) :: a -> a')
+
 -- | Rotate a 'Transformable' by radians around an axis specified in one of these ways:
 class Rotate a where
   -- | @rotate@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
@@ -217,6 +233,21 @@ instance {-# OVERLAPPABLE #-} (d ~ Double, PropagateColor a, a' ~ a) => Rotate (
 instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (E v -> ang -> a -> a') where
   rotate (E e) ang a = propagateColor (W.rotate (0 & e .~ 1) (mod2pi ang)) a
 
+class Rotated a where
+  _rotated :: a
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, x ~ Double, y ~ Double, z ~ Double, ang ~ Double, PropagateColor a, a' ~ a) => Rotated (x -> y -> z -> ang -> Optic' p g a a') where
+  _rotated x y z ang = iso (rotate x y z ang :: a' -> a) (rotate x y z (-ang) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, d ~ Double, ang ~ Double, PropagateColor a, a' ~ a) => Rotated (V3 d -> ang -> Optic' p g a a') where
+  _rotated v ang = iso (rotate v ang :: a' -> a) (rotate v (-ang) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, d ~ Double, PropagateColor a, a' ~ a) => Rotated (Quaternion d -> Optic' p g a a') where
+  _rotated q = iso (rotate q :: a' -> a) (propagateColor (W.rotate (negate (q ^. _yzw)) (acos (q ^. _x))) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, v ~ V3, ang ~ Double, PropagateColor a, a' ~ a) => Rotated (E v -> ang -> Optic' p g a a') where
+  _rotated (E e) ang = iso (rotate (E e) ang :: a' -> a) (rotate (E e) (-ang) :: a -> a')
+
 -- | Rotate by degrees around an axis specified in one of these ways:
 class RotateBy a where
   -- | @rotateDeg@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
@@ -241,6 +272,21 @@ instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ 
 
 instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
   rotateDeg (E e) d a = propagateColor (W.rotate (0 & e .~ 1) (fromDeg d)) a
+
+class RotatedDeg a where
+  _rotatedDeg :: a
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, deg ~ Double, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => RotatedDeg (x -> y -> z -> deg -> Optic' p g a a') where
+  _rotatedDeg x y z d = iso (rotateDeg x y z d :: a' -> a) (rotateDeg x y z (-d) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotatedDeg (V3 d -> deg -> Optic' p g a a') where
+  _rotatedDeg v d = iso (rotateDeg v d :: a' -> a) (rotateDeg v (-d) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotatedDeg (Quaternion d -> deg -> Optic' p g a a') where
+  _rotatedDeg q d = iso (rotateDeg q d :: a' -> a) (rotateDeg q (-d) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotatedDeg (E v -> deg -> Optic' p g a a') where
+  _rotatedDeg (E e) d = iso (rotateDeg (E e) d :: a' -> a) (rotateDeg (E e) (-d) :: a -> a')
 
 -- | Scale x y z axes
 class Scale a where
@@ -288,6 +334,57 @@ instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, Transformable2D a, a' ~ a
 instance {-# OVERLAPPABLE #-} (Transformable2D a, a' ~ a, Double ~ d) => Scale2D (d -> a -> a') where
   scale2D xy a = W.scale2D (V2 xy xy) a
 
+scaledOptic ::
+  forall p g a a'.
+  (Profunctor p, Functor g, PropagateColor a, a' ~ a) =>
+  V3 Double ->
+  Maybe (Optic' p g a a')
+scaledOptic v
+  | any WNZ.nearZero v = Nothing
+  | otherwise = Just $ iso (propagateColor (W.scale v) :: a' -> a) (propagateColor (W.scale (1 / v)) :: a -> a')
+
+class Scaled a where
+  _scaled :: a
+
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (d -> e -> f -> Maybe (Optic' p g a a')) where
+  _scaled x y z = scaledOptic (V3 x y z)
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (V3 d -> Maybe (Optic' p g a a')) where
+  _scaled v = scaledOptic v
+
+instance {-# OVERLAPPABLE #-} (xy ~ Double, z ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (xy -> z -> Maybe (Optic' p g a a')) where
+  _scaled xy z = scaledOptic (V3 xy xy z)
+
+instance {-# OVERLAPS #-} (d ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (d -> Maybe (Optic' p g a a')) where
+  _scaled xyz = scaledOptic (V3 xyz xyz xyz)
+
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (E v -> amt -> Maybe (Optic' p g a a')) where
+  _scaled (E e) amt = scaledOptic (1 & e .~ amt)
+
+scaled2DOptic ::
+  forall p g a a'.
+  (Profunctor p, Functor g, Transformable2D a, a' ~ a) =>
+  V2 Double ->
+  Maybe (Optic' p g a a')
+scaled2DOptic v
+  | any WNZ.nearZero v = Nothing
+  | otherwise = Just $ iso (W.scale2D v :: a' -> a) (W.scale2D (1 / v) :: a -> a')
+
+class Scaled2D a where
+  _scaled2D :: a
+
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2D (x -> y -> Maybe (Optic' p g a a')) where
+  _scaled2D x y = scaled2DOptic (V2 x y)
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2D (V2 d -> Maybe (Optic' p g a a')) where
+  _scaled2D v = scaled2DOptic v
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2D (d -> Maybe (Optic' p g a a')) where
+  _scaled2D xy = scaled2DOptic (V2 xy xy)
+
+instance {-# OVERLAPPABLE #-} (v ~ V2, amt ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2D (E v -> amt -> Maybe (Optic' p g a a')) where
+  _scaled2D (E e) amt = scaled2DOptic (1 & e .~ amt)
+
 -- | Reflect across a plane through the origin
 class Mirror a where
   -- | @mirror@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
@@ -320,6 +417,24 @@ instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', PropagateColor s, s' ~ s) 
 
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, PropagateColor s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
   mirror x y z a = propagateColor (W.mirror (V3 x y z)) a
+
+class Mirrored_ a where
+  _mirrored :: a
+
+instance {-# OVERLAPS #-} (Profunctor p, Functor g, vd ~ V3 Double, PropagateColor a, a' ~ a) => Mirrored_ (vd -> Optic' p g a a') where
+  _mirrored v = iso (mirror v :: a' -> a) (mirror v :: a -> a')
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => Mirrored_ (x -> y -> z -> Optic' p g a a') where
+  _mirrored x y z = iso (mirror x y z :: a' -> a) (mirror x y z :: a -> a')
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, v ~ V3, PropagateColor a, a' ~ a) => Mirrored_ (E v -> Optic' p g a a') where
+  _mirrored (E e) = iso (mirror (E e) :: a' -> a) (mirror (E e) :: a -> a')
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, v ~ V3, v' ~ v, PropagateColor a, a' ~ a) => Mirrored_ (E v -> E v' -> Optic' p g a a') where
+  _mirrored (E f) (E g) = iso (mirror (E f) (E g) :: a' -> a) (mirror (E f) (E g) :: a -> a')
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, v ~ V3, v' ~ v, v'' ~ v, PropagateColor a, a' ~ a) => Mirrored_ (E v -> E v' -> E v'' -> Optic' p g a a') where
+  _mirrored (E e) (E f) (E g) = iso (mirror (E e) (E f) (E g) :: a' -> a) (mirror (E e) (E f) (E g) :: a -> a')
 
 -- | mirror plus the original both the original and the image as in freecad's PartDesign::Mirrored
 class Mirrored a where
