@@ -11,3 +11,5 @@ instance (Double ~ d) => ToPath [V3 d] where toPath abspts = mconcat [line a b |
 
 instance {-# OVERLAPS #-} (path ~ Path) => ToPath path where toPath = id
 
+instance ToPath Path2D where toPath = fromPath2D
+

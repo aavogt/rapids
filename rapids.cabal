@@ -52,10 +52,12 @@ library
       TypeOperators
       UndecidableInstances
       ViewPatterns
+      RankNTypes
   pkgconfig-depends:
       qhull_r
   build-depends:
       StateVar
+    , ad
     , base
     , containers
     , directory

@@ -35,8 +35,6 @@ module Rapids
   )
 where
 
-import Rapids.ToPath
-import Rapids.ToShape
 import Control.Applicative
 import Control.Lens hiding (prism)
 import Control.Monad
@@ -44,8 +42,11 @@ import Data.Fixed (mod')
 import Data.IORef
 import Data.List (tails)
 import Data.Maybe
+import GHC.Float
 import GHC.TypeLits
 import Linear hiding (rotate, scaled)
+import Numeric.AD
+import Numeric.AD.Rank1.Tower (Tower)
 import Rapids.Color
 import Rapids.ConvexHull (Hull (..))
 import Rapids.IniVal
@@ -509,8 +510,8 @@ instance Num Solid where
     where
       msg = "Rapids.signum :: Waterfall.Solid->Waterfall.Solid: can't compute axisAlignedBoundingBox"
 
-rectangle :: Double -> Double -> Shape
-rectangle x y = scale2D x y unitSquare
+rectangle :: Double -> Double -> Path2D
+rectangle w h = loophv [w, h, -w]
 
 -- | `[h,v,h,v,h,v] -> Path2D`
 -- with a final edge added to make a loop
@@ -567,6 +568,93 @@ instance Num Shape where
   (+) = W.union
   (-) = W.difference
   (*) = W.intersection
-  fromInteger i = rectangle (fromInteger i) (fromInteger i)
+  fromInteger i = scale2D (fromInteger i) (fromInteger i) unitSquare
   abs = error "instance Num Shape missing abs"
   signum = error "instance Num Shape missing signum"
+
+-- | `circle diameter` in the xy plane (z=0)
+circle :: Double -> Path
+circle ((/ 2) -> radius) =
+  do
+    arcVia3D d l
+    arcVia3D u r
+    `execPathState` r
+  where
+    u = V3 0 radius 0
+    l = V3 (-radius) 0 0
+    d = V3 0 (-radius) 0
+    r = V3 radius 0 0
+
+-- | `fustrum d1 d2 h` has a circle of d2 at z=h, and another circle of d1 at z=0
+fustrum d1 d2 h = loft [circle d1, translate ez h (circle d2)]
+
+-- * spirals
+
+class SpiralPath a where
+  unitSpiralPath :: a
+  -- ^
+  -- > unitSpiral :: Double -> Double -> Path
+  -- > unitSpiral :: Double           -> Path
+  --
+  -- > unitSpiral turns taperSlope :: Path
+  -- > unitSprial turns            :: Path
+
+instance {-# OVERLAPS #-} (turns ~ Double, taperSlope ~ Double, path ~ [V3 Double]) => SpiralPath (turns -> taperSlope -> path) where
+  unitSpiralPath turns taperSlope =
+    [ unitSpiralPoints taperSlope th
+      | let fractionalTurn
+              | nearZero ((2 * turns) - fromIntegral (floor (2 * turns))) = [] -- is that the right tolerance?
+              | otherwise = [arcsPerHalfTurn * 4 * turns],
+        th <- map ((/ arcsPerHalfTurn) . (/ 2) . (pi *)) $ map fromIntegral [0 .. floor (arcsPerHalfTurn * 4 * turns)] ++ fractionalTurn
+    ]
+    where
+      arcsPerHalfTurn = 4
+
+unitSpiralPoints taperSlope th = V3 ((1 - taperSlope * z) * sin th) ((1 - taperSlope * z) * cos th) z
+  where
+    z = th / 2 / pi
+
+instance (turns ~ Double, path ~ [V3 Double]) => SpiralPath (turns -> path) where
+  unitSpiralPath turns = unitSpiralPath turns 0
+
+class UnitSpiral a where
+  -- | r=1, pitch=1
+  --
+  -- > scale r r pitch $ unitSpiral turns taperSlope $ rectangle w h
+  unitSpiral :: a
+
+instance {-# INCOHERENT #-} (turns ~ Double, taper ~ Double, ToPath profile, Solid ~ solid) => UnitSpiral (turns -> taper -> profile -> solid) where
+  unitSpiral turns taperSlope profile = unitSpiral1 turns taperSlope (toPath profile)
+
+unitSpiral1 :: Double -> Double -> Path -> Solid
+unitSpiral1 turns taperSlope sh =
+    loft
+      [ spiralFrame taperSlope th sh
+        | let fractionalTurn
+                | nearZero (2 * turns - fromIntegral (floorDouble (2 * turns))) = []
+                | otherwise = [2 * turns - fromIntegral (floorDouble (2 * turns))],
+          let nperhalfturn = 5, -- may need increasing or make extra turns and cut extras out
+          n <- map fromIntegral [0 .. floor nperhalfturn * floorDouble (2 * turns)] ++ fractionalTurn,
+          let th = pi * n / nperhalfturn
+      ]
+
+instance {-# OVERLAPPABLE #-} UnitSpiral (turns -> Double -> profile -> solid) => UnitSpiral (turns -> profile -> solid) where
+  unitSpiral turns sh = unitSpiral turns (0 :: Double) sh
+
+spiralFrame :: (Transformable t) => Double -> Double -> t -> t
+spiralFrame taperSlope theta = frenetFrame (unitSpiralPoints (auto taperSlope)) theta
+
+-- | place a solid/shape in the Frenet frame
+--
+-- TODO: https://www.microsoft.com/en-us/research/wp-content/uploads/2016/12/Computation-of-rotation-minimizing-frames.pdf
+frenetFrame :: (Transformable solid) => (forall s. AD s (Tower Double) -> V3 (AD s (Tower Double))) -> Double -> solid -> solid
+frenetFrame curve t =
+  let (v : tangent : normal : _) = transposeV3List $ diffs0F curve t
+      binormal = normalize $ cross tangent normal
+      dummy = V3 0 0 1 -- all zeroes would be better, but that throws Standard_ConstructionError
+      m = transpose $ V4 (normalize normal) binormal dummy v
+   in matTransform m
+
+-- sequenceA zipList ish
+transposeV3List :: V3 [a] -> [V3 a]
+transposeV3List (V3 a b c) = zipWith3 V3 a b c

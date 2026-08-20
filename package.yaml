@@ -21,6 +21,7 @@ dependencies:
   - text
   - random
   - these
+  - ad
 
 pkg-config-dependencies:
   - qhull_r
@@ -44,6 +45,7 @@ default-extensions:
   - TypeOperators
   - UndecidableInstances
   - ViewPatterns
+  - RankNTypes
 
 library:
   source-dirs:
