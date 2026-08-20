@@ -2,19 +2,13 @@
 
 Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-warren/opencascade-hs), where I add missing operations and other quality-of-life features:
 
-  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L456) `$red :: Solid -> Solid` propagate colors and source locations per-face through most 3d operations to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for display by [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker)
-  - "any `ToPath`" means `[V2 Double]`, `[V3 Double]` or `Path`
-  - "any `ToShape` means `[V2 Double]`, `Path2D`,  `Shape` or `Path`
-  - `section :: Solid -> [Path2D]` slice the solid with XY plane
-  - `pad` turns any `ToShape` into a `Solid`:
-    - `pad z = Waterfall.prism`
-    - `pad z taperFrac`
-    - `pad x y z`
-    - `pad x y z taperFrac`
-    - `pad v`
-    - `pad v taperFrac`
+  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L456) `$red :: Solid -> Solid` also add source locations and propagate through most 3d operations to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker)
+  - `pad` generalizes Waterfall.prism turning any `shape` into a `Solid` with optional taperFrac :
+    - `pad <x> <y> z <taperFrac> shape`
+    - `pad v3 <taperFrac>`
   - `sweep path shape`
-  - `revolution :: ToPath p => Double -> p -> Solid` for a sector or `revolution :: Path2D -> Solid` for 2pi
+  - `revolution <radians> path`
+  - `unitSpiral turns <taperSlope> path`
   - meshed convex hull of vertices contained within `Solid`, `[V3 Double]` `[Path]` or `Path`. In other words:
     - `hull :: Solid       -> Solid`
     - `hull :: [V3 Double] -> Solid`
@@ -25,30 +19,38 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `translate` `rotate` `rotateDeg` `scale` `mirror`  produce `Solid->Solid`
     - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  keep the original solid
     - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce `Iso' Solid Solid`
-  - overloaded transformations accept [ex ey ez from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex), [`q :: Quaternion Double`](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-Quaternion.html#t:Quaternion), `x, y, z, radians  :: Double`, `v3 :: V3 Double`. Example expressions of type `Solid -> Solid`:
+    - example expressions of type `Solid -> Solid`:
 ```
-      translate x y z
-      translate v3
-      translate ex x
-      translate ey y
-      translate ez z
-      mirror v3
-      mirror x y z
-      mirror ex x
-      mirror ey y
-      mirror ez z
-      mirror ex ey ez = mirror ex . mirror ey . mirror ez
-      rotate x y z radians
-      rotate v     radians
-      rotate q
-      rotate ex    radians
-      scale v3
-      scale x y z
-      scale xy z
-      scale ex x
-      scale ey y
+        translate x y z
+        translate v3
+        translate ex x
+        translate ey y
+        translate ez z
+        mirror v3
+        mirror x y z
+        mirror ex x
+        mirror ey y
+        mirror ez z
+        mirror ex ey ez = mirror ex . mirror ey . mirror ez
+        rotate x y z radians
+        rotate v     radians
+        rotate q
+        rotate ex    radians
+        scale v3
+        scale xyz    -- uniform
+        scale x y z
+        scale xy z  = scale xy xy z
+        scale ex x
+        scale ey y
 ```
+  - `section :: Solid -> [Path2D]` slice the solid with XY plane
   - Rapids.Path lets you use do notation to construct paths for example [loophv](https://gist.github.com/aavogt/1b59c0d02c5bcc129d743042b99839f9#file-main-hs-L39) or [do notation for paths](http://github.com/aavogt/rapids/blob/main/test/lib/Solids.hs)
+  - variables in the above example expressions
+    - `ex, ey, ez :: E V3` [reexported from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex)
+    - `q :: Quaternion Double` [reexported from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-Quaternion.html#t:Quaternion)
+    - `x, y, z, xy, xyz, taperFrac, taperSlope, radians :: Double`, `v3 :: V3 Double`, angle brackets (`<x>`) mean the argument(s) are optional
+    - `path :: ToPath p => p` is a `[V2 Double]`, `[V3 Double]`, `Path2D` or `Path`
+    - `shape :: ToShape s => s` is a `[V2 Double]`, `Path2D`,  `Shape` or `Path` or lists of them
 
 ## viewers
 [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker).

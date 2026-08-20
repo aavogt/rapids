@@ -564,6 +564,10 @@ instance {-# INCOHERENT #-} (Double ~ x, Double ~ z, Double ~ y, Double ~ taper,
       ]
 
 -- | @sweep path shape@
+--
+-- > sweep [0, V3 0 0 1e-3, V3 (-2) 0 (h / 2), V3 0 0 h] (rectangle 3 4)
+--
+-- the first segment 1e-3 fixes the bottom face orientation
 sweep path shape = W.sweep (toPath path) (toShape shape)
 
 instance Num Shape where
