@@ -11,7 +11,12 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `hull :: [Path]      -> Solid`
     - `hull :: Path        -> Solid`
   - `instance Num Solid` for `(+),(-),(*) :: Solid -> Solid -> Solid` for [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
-  - `translate` `rotate` `rotateDeg` `scale` `mirror` and `mirrored` convert arguments according to:
+  - transformations
+    - `translate` `rotate` `rotateDeg` `scale` `mirror`  produce `Solid->Solid`
+    - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  add the original solid
+    - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce `Iso' Solid Solid`
+
+  and `mirrored` convert arguments according to:
     - `R.translate ey 1 == W.translate (V3 0 1 0)` here [ex ey ez from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex) decides the direction
     - three doubles are packed `R.translate x y z == W.translate (V3 x y z)`
     - V3 double is unchanged `R.translate xyz = W.translate xyz`
