@@ -1,3 +1,4 @@
+{- HLINT ignore "Eta reduce" -}
 
 -- | cascade, waterfall, rapids
 -- simplify waterfall-cad expressions by complicating the types and type errors
@@ -34,33 +35,26 @@ where
 
 import Control.Applicative
 import Control.Lens hiding (prism)
-import Rapids.Color
-import Rapids.Section(section, sectionPerimeter)
-import Rapids.ConvexHull (Hull(..))
-import Rapids.Revolution (revolution, sector)
-import Rapids.Offset (Offset(offset), offsetWithTolerance, tryOffset, tryOffsetWithTolerance)
-import Rapids.Statistics
 import Control.Monad
+import Data.Fixed (mod')
 import Data.IORef
 import Data.List (tails)
 import Data.Maybe
 import GHC.TypeLits
 import Linear hiding (rotate)
+import Rapids.Color
+import Rapids.ConvexHull (Hull (..))
 import Rapids.IniVal
+import Rapids.Offset (Offset (offset), offsetWithTolerance, tryOffset, tryOffsetWithTolerance)
 import Rapids.Path
 import Rapids.Path.Project
+import Rapids.Revolution (revolution, sector)
+import Rapids.Section (section, sectionPerimeter)
+import Rapids.Statistics
 import System.Directory
 import System.FilePath
 import Waterfall hiding
-  ( offset,
-    offsetWithTolerance,
-    tryOffset,
-    tryOffsetWithTolerance,
-    volume,
-    centerOfMass,
-    momentOfInertia,
-    unions,
-    appendPath2D,
+  ( appendPath2D,
     appendSegment,
     appendSegment2D,
     arc,
@@ -78,10 +72,12 @@ import Waterfall hiding
     bezierRelative3D,
     bezierTo2D,
     bezierTo3D,
+    centerOfMass,
     closeLoop2D,
     closeLoop3D,
     difference,
     intersection,
+    intersections,
     line2D,
     line3D,
     lineRelative2D,
@@ -89,6 +85,9 @@ import Waterfall hiding
     lineTo2D,
     lineTo3D,
     mirror,
+    momentOfInertia,
+    offset,
+    offsetWithTolerance,
     pathEndpoints2D,
     pathEndpoints3D,
     pathFrom2D,
@@ -100,6 +99,7 @@ import Waterfall hiding
     repeatLooping,
     reversePath2D,
     reversePath3D,
+    revolution,
     rotate,
     scale,
     scale2D,
@@ -111,14 +111,17 @@ import Waterfall hiding
     takePathFraction2D,
     takePathFraction3D,
     translate,
-    union,
-    scale2D,
     translate2D,
-    intersections,
-    revolution,
+    tryOffset,
+    tryOffsetWithTolerance,
+    union,
+    unions,
+    volume,
+    _mirrored,
+    _translated,
+    _translated2D,
   )
 import qualified Waterfall as W
-import Data.Fixed (mod')
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
@@ -186,7 +189,7 @@ instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ang ~ Double, P
   rotate x y z ang a = propagateColor (W.rotate (V3 x y z) (mod2pi ang)) a
 
 mod2pi :: Double -> Double
-mod2pi a = a `mod'` (2*pi)
+mod2pi a = a `mod'` (2 * pi)
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, ang ~ Double, PropagateColor a, a' ~ a) => Rotate (V3 d -> ang -> a -> a') where
   rotate v ang a = propagateColor (W.rotate v (mod2pi ang)) a
@@ -289,14 +292,14 @@ instance {-# INCOHERENT #-} (v ~ V3, v ~ v', PropagateColor s, s' ~ s) => Mirror
   mirror (E f) (E g) a =
     let ga = propagateColor (W.mirror (0 & g .~ 1)) a
         fga = propagateColor (W.mirror (0 & f .~ 1)) ga
-    in fga
+     in fga
 
 instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', PropagateColor s, s' ~ s) => Mirror (E v -> E v' -> E v'' -> s -> s') where
   mirror (E e) (E f) (E g) a =
     let ga = propagateColor (W.mirror (0 & g .~ 1)) a
         fga = propagateColor (W.mirror (0 & f .~ 1)) ga
         efga = propagateColor (W.mirror (0 & e .~ 1)) fga
-    in efga
+     in efga
 
 instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, PropagateColor s, s ~ s') => Mirror (x -> y -> z -> s -> s') where
   mirror x y z a = propagateColor (W.mirror (V3 x y z)) a
@@ -317,14 +320,15 @@ instance {-# INCOHERENT #-} (v ~ V3, v ~ v', Num s, PropagateColor s, s' ~ s) =>
   mirrored (E f) (E g) a =
     let ga = W.mirror (0 & g .~ 1) a + a
         fga = W.mirror (0 & f .~ 1) ga + ga
-    in fga
+     in fga
 
 instance {-# INCOHERENT #-} (v ~ V3, v ~ v', v ~ v'', Num s, PropagateColor s, s' ~ s) => Mirrored (E v -> E v' -> E v'' -> s -> s') where
   mirrored (E e) (E f) (E g) a =
     let ga = W.mirror (0 & g .~ 1) a + a
         fga = W.mirror (0 & f .~ 1) ga + ga
         efga = W.mirror (0 & e .~ 1) fga + fga
-    in efga
+     in efga
+
 -- can it be recursive?
 
 instance {-# INCOHERENT #-} (v ~ V3, Num s, PropagateColor s, s' ~ s) => Mirrored (E v -> s -> s') where
@@ -433,7 +437,7 @@ instance (Double ~ d) => ToPath [V2 d] where toPath abspts = mconcat [line (V3 a
 
 instance (Double ~ d) => ToPath [V3 d] where toPath abspts = mconcat [line a b | a : b : _ <- tails abspts]
 
-instance {-# OVERLAPS #-} path ~ Path => ToPath path where toPath = id
+instance {-# OVERLAPS #-} (path ~ Path) => ToPath path where toPath = id
 
 -- | @sweep path shape@
 sweep path shape = W.sweep (toPath path) (toShape shape)
