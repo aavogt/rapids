@@ -154,6 +154,23 @@ instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, PropagateColor 
 instance {-# OVERLAPPABLE #-} (d ~ Double, PropagateColor a, a ~ a') => Translate (V3 d -> a -> a') where
   translate v a = propagateColor (W.translate v) a
 
+-- | Translate a 'Transformable' ( 'Path'/'Solid'/'V3' Double) in a direction
+class Translated a where
+  -- | @translate@ exressions of type 'Transformable' @a => Iso' a a@ (probably Iso' 'Solid' 'Solid')
+  --
+  -- > _translated x y z
+  -- > _translated (v :: V3 Double)
+  -- > _translated ex x -- along x axis
+  -- > _translated ey y -- along y
+  -- > _translated ez z -- along z
+  _translated :: a
+
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, d ~ Double, e ~ Double, f ~ Double, PropagateColor a, a' ~ a) => Translated (d -> e -> f -> Optic' p g a a') where
+  _translated x y z = iso (translate x y z :: a' -> a) (translate (-x) (-y) (-z) :: a -> a')
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, d ~ Double, PropagateColor a, a ~ a') => Translated (V3 d -> Optic' p g a a') where
+  _translated v = iso (translate v :: a' -> a) (translate (-v) :: a -> a')
+
 -- | Linear defines 'ex' 'ey' 'ez'
 --
 -- > transform 'ex' 3 solid
