@@ -218,7 +218,7 @@ class Rotate a where
   --
   -- > rotate x y z rad
   -- > rotate v     rad
-  -- > rotate q     rad
+  -- > rotate q
   -- > rotate ex    rad
   rotate :: a
 
@@ -258,7 +258,7 @@ class RotateBy a where
   --
   -- > rotateDeg x y z deg
   -- > rotateDeg v3 deg
-  -- > rotateDeg q  deg
+  -- > rotateDeg q  deg -- ignore the quaternion's magnitude
   -- > rotateDeg ey deg
   rotateDeg :: a
 
@@ -277,6 +277,12 @@ instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ 
 instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
   rotateDeg (E e) d a = propagateColor (W.rotate (0 & e .~ 1) (fromDeg d)) a
 
+  -- | @rotateDeg@ expressions of type 'Transformable' @a => Iso' a a@ (probably Iso 'Solid' 'Solid')
+  --
+  -- > _rotatedDeg x y z deg
+  -- > _rotatedDeg v3 deg
+  -- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
+  -- > _rotatedDeg ey deg
 class RotatedDeg a where
   _rotatedDeg :: a
 
@@ -396,7 +402,7 @@ instance {-# OVERLAPPABLE #-} (d ~ Double, Profunctor p, Functor g, Transformabl
 instance {-# OVERLAPPABLE #-} (v ~ V2, amt ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2D (E v -> amt -> Maybe (Optic' p g a a')) where
   _scaled2D (E e) amt = scaled2DOptic (1 & e .~ amt)
 
--- | Reflect across a plane through the origin
+-- | Reflect across a plane through the origin the normal specified as a V3 Double, E V3
 class Mirror a where
   -- | @mirror@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
   --
@@ -524,7 +530,7 @@ class Pad a where
   pad :: a
   -- ^ pad expressions of type 'Shape' -> 'Solid'
   --
-  -- > pad z
+  -- > pad z = Waterfall.prism
   -- > pad z taperFrac
   -- > pad x y z
   -- > pad x y z taperFrac
