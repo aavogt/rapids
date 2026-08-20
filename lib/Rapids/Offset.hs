@@ -121,8 +121,8 @@ offsetWithTolerance tolerance value arcIntersection solid
 class Offset a where
   -- |
   --
-  -- > offset amount solid
-  -- > offset amount 1 solid -- same
+  -- > offset amount solid   -- round corners
+  -- > offset amount 1 solid -- round corners
   -- > offset amount 0 solid -- sharp corners
   offset :: Double -> a
 
