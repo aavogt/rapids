@@ -53,9 +53,11 @@ import Rapids.IniVal
 import Rapids.Offset (Offset (offset), offsetWithTolerance, tryOffset, tryOffsetWithTolerance)
 import Rapids.Path
 import Rapids.Path.Project
-import Rapids.Revolution (Revolution(..))
+import Rapids.Revolution (Revolution (..))
 import Rapids.Section (section, sectionPerimeter)
 import Rapids.Statistics
+import Rapids.ToPath
+import Rapids.ToShape
 import System.Directory
 import System.FilePath
 import Waterfall hiding
@@ -278,12 +280,12 @@ instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ 
 instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateBy (E v -> deg -> a -> a') where
   rotateDeg (E e) d a = propagateColor (W.rotate (0 & e .~ 1) (fromDeg d)) a
 
-  -- | @rotateDeg@ expressions of type 'Transformable' @a => Iso' a a@ (probably Iso 'Solid' 'Solid')
-  --
-  -- > _rotatedDeg x y z deg
-  -- > _rotatedDeg v3 deg
-  -- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
-  -- > _rotatedDeg ey deg
+-- \| @rotateDeg@ expressions of type 'Transformable' @a => Iso' a a@ (probably Iso 'Solid' 'Solid')
+--
+-- > _rotatedDeg x y z deg
+-- > _rotatedDeg v3 deg
+-- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
+-- > _rotatedDeg ey deg
 class RotatedDeg a where
   _rotatedDeg :: a
 
