@@ -26,6 +26,8 @@ module Rapids
     module Rapids.Statistics,
     module Rapids.Revolution,
     module Rapids.Offset,
+    module Rapids.ToPath,
+    module Rapids.ToShape,
     module Linear,
     module Control.Lens,
     module Waterfall,
@@ -33,6 +35,8 @@ module Rapids
   )
 where
 
+import Rapids.ToPath
+import Rapids.ToShape
 import Control.Applicative
 import Control.Lens hiding (prism)
 import Control.Monad
@@ -552,24 +556,6 @@ instance {-# INCOHERENT #-} (Double ~ x, Double ~ z, Double ~ y, Double ~ taper,
         | q <- shapePaths (toShape shape),
           let p = translate x y z (fromPath2D (uScale2D taperFrac q))
       ]
-
-class ToShape a where toShape :: a -> Shape
-
-class ToPath a where toPath :: a -> Path
-
-instance ToShape Shape where toShape = id
-
-instance ToShape Path2D where toShape = makeShape
-
-instance ToShape Path where toShape = makeShape . projectPath
-
-instance (Double ~ d) => ToShape [V2 d] where toShape abspts = makeShape $ mconcat [line a b :: Path2D | a : b : _ <- tails abspts]
-
-instance (Double ~ d) => ToPath [V2 d] where toPath abspts = mconcat [line (V3 a b 0) (V3 c d 0) | V2 a b : V2 c d : _ <- tails abspts]
-
-instance (Double ~ d) => ToPath [V3 d] where toPath abspts = mconcat [line a b | a : b : _ <- tails abspts]
-
-instance {-# OVERLAPS #-} (path ~ Path) => ToPath path where toPath = id
 
 -- | @sweep path shape@
 sweep path shape = W.sweep (toPath path) (toShape shape)
