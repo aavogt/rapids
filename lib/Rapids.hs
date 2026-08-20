@@ -32,6 +32,7 @@ module Rapids
     module Control.Lens,
     module Waterfall,
     projectPath,
+    axisAlignedBoundingBox,
   )
 where
 
@@ -54,8 +55,9 @@ import Rapids.Offset (Offset (offset), offsetWithTolerance, tryOffset, tryOffset
 import Rapids.Path
 import Rapids.Path.Project
 import Rapids.Revolution (Revolution (..))
-import Rapids.Section (section, sectionPerimeter)
 import Rapids.Statistics
+import Rapids.Section
+import Rapids.AABB
 import Rapids.ToPath
 import Rapids.ToShape
 import System.Directory
@@ -79,6 +81,7 @@ import Waterfall hiding
     bezierRelative3D,
     bezierTo2D,
     bezierTo3D,
+    axisAlignedBoundingBox,
     centerOfMass,
     closeLoop2D,
     closeLoop3D,

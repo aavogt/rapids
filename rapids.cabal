@@ -15,6 +15,7 @@ library
       InlineOCCT
       InlineOCCT.Context
       Rapids
+      Rapids.AABB
       Rapids.BoolOp
       Rapids.Color
       Rapids.ConvexHull
