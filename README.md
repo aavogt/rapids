@@ -17,7 +17,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
   - `instance Num Solid` for `(+),(-),(*) :: Solid -> Solid -> Solid` for [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
   - transformations
     - `translate` `rotate` `rotateDeg` `scale` `mirror`  produce `Solid->Solid`
-    - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  keep the original solid
+    - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  add the original `mirrored ... solid = solid + mirror ... solid`
     - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce `Iso' Solid Solid`
     - example expressions of type `Solid -> Solid`:
 ```
