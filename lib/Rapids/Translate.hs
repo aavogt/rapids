@@ -1,50 +1,75 @@
 module Rapids.Translate where
-
 import Control.Lens hiding (prism)
 import Linear
 import Rapids.Color
 import Waterfall (Transformable2D)
 import qualified Waterfall as W
-import qualified Waterfall.Internal.NearZero as WNZ
--- | Translate a 'Transformable' ( 'Path'/'Solid'/'V3' Double) in a direction
-class Translate a where
-  -- | @translate@ exressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
+
+-- | Translate a 'Transformable' ( 'Path'/'Solid'/'V3' Double) in one or more directions.
+class Translate r where
+  -- | @translate@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
   --
   -- > translate x y z
   -- > translate (v :: V3 Double)
-  -- > translate ex x -- along x axis
-  -- > translate ey y -- along y
-  -- > translate ez z -- along z
-  translate :: a
+  -- > translate ex x
+  -- > translate ey y
+  -- > translate ez z
+  translate :: r
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, PropagateColor a, a' ~ a) => Translate (d -> e -> f -> a -> a') where
-  translate x y z a = propagateColor (W.translate (V3 x y z)) a
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, TranslateGo r t) => Translate (d -> e -> f -> r) where
+  translate x y z = translateGo (W.translate (V3 x y z))
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, PropagateColor a, a ~ a') => Translate (V3 d -> a -> a') where
+instance {-# INCOHERENT #-} (d ~ Double, PropagateColor a, a ~ a') => Translate (V3 d -> a -> a') where
   translate v a = propagateColor (W.translate v) a
 
--- | Translate a 'Transformable' ( 'Path'/'Solid'/'V3' Double) in a direction
-class Translated a where
-  -- | @translate@ exressions of type 'Transformable' @a => Iso' a a@ (probably Iso' 'Solid' 'Solid')
-  --
-  -- > _translated x y z
-  -- > _translated (v :: V3 Double)
-  -- > _translated ex x -- along x axis
-  -- > _translated ey y -- along y
-  -- > _translated ez z -- along z
-  _translated :: a
+class W.Transformable t => TranslateGo r t | r -> t where
+  translateGo :: (t -> t) -> r
 
-instance {-# INCOHERENT #-} (Profunctor p, Functor g, d ~ Double, e ~ Double, f ~ Double, PropagateColor a, a' ~ a) => Translated (d -> e -> f -> Optic' p g a a') where
-  _translated x y z = iso (translate x y z :: a' -> a) (translate (-x) (-y) (-z) :: a -> a')
+-- base case
+instance {-# OVERLAPPABLE #-} (PropagateColor a, a' ~ a, a ~ t) => TranslateGo (a -> a') t where
+  translateGo acc = propagateColor acc
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, TranslateGo r t) => TranslateGo (d -> e -> f -> r) t where
+  translateGo acc x y z = translateGo (acc . W.translate (V3 x y z))
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, d ~ Double, PropagateColor a, a ~ a') => Translated (V3 d -> Optic' p g a a') where
-  _translated v = iso (translate v :: a' -> a) (translate (-v) :: a -> a')
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, TranslateGo r t) => TranslateGo (E v -> amt -> r) t where
+  translateGo acc (E e) amt = translateGo (acc . W.translate (0 & e .~ amt))
 
--- | Linear defines 'ex' 'ey' 'ez'
---
--- > transform 'ex' 3 solid
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, PropagateColor a, a' ~ a) => Translate (E v -> amt -> a -> a') where
-  translate (E e) amt a = propagateColor (W.translate (0 & e .~ amt)) a
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, TranslateGo r t) => Translate (E v -> amt -> r) where
+  translate (E e) amt = translateGo (W.translate (0 & e .~ amt))
+
+
+
+-- | Translate a 'Transformable' in one or more directions through an 'Iso'.
+class Translated r where
+  _translated :: r
+
+instance {-# OVERLAPPABLE #-} (TranslatedGo r t) => Translated r where
+  _translated = translatedGo id id
+
+class W.Transformable t => TranslatedGo r t | r -> t where
+  translatedGo :: (t -> t) -> (t -> t) -> r
+
+-- base case
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, a' ~ a, a ~ t) => TranslatedGo (Optic' p g a a') t where
+  translatedGo forward backward = iso (propagateColor forward :: a' -> a) (propagateColor backward :: a -> a')
+
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, TranslatedGo r t) => TranslatedGo (d -> e -> f -> r) t where
+  translatedGo forward backward x y z =
+    let translation = W.translate (V3 x y z)
+        inverse = W.translate (V3 (-x) (-y) (-z))
+     in translatedGo (forward . translation) (inverse . backward)
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, TranslatedGo r t) => TranslatedGo (V3 d -> r) t where
+  translatedGo forward backward v =
+    let translation = W.translate v
+        inverse = W.translate (-v)
+     in translatedGo (forward . translation) (inverse . backward)
+
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, TranslatedGo r t) => TranslatedGo (E v -> amt -> r) t where
+  translatedGo forward backward (E e) amt =
+    let translation = W.translate (0 & e .~ amt)
+        inverse = W.translate (0 & e .~ -amt)
+     in translatedGo (forward . translation) (inverse . backward)
 
 class Translate2D a where
   translate2D :: a
@@ -72,4 +97,3 @@ instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, d ~ Double, Transformabl
 
 instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, v ~ V2, amt ~ Double, Transformable2D a, a' ~ a) => Translated2D (E v -> amt -> Optic' p g a a') where
   _translated2D (E e) amt = iso (translate2D (0 & e .~ amt) :: a' -> a) (translate2D (0 & e .~ -amt) :: a -> a')
-

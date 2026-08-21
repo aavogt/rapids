@@ -1,34 +1,30 @@
 module Rapids.Scale where
-
 import Control.Lens hiding (prism)
 import Linear hiding (scaled)
 import Rapids.Color
-import Rapids.ConvexHull (Hull (..))
 import Waterfall
 import qualified Waterfall as W
 import qualified Waterfall.Internal.NearZero as WNZ
--- | Scale x y z axes
-class Scale a where
+-- | Scale along one or more directions.
+class Scale r where
   -- | @scale@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
-  --
-  -- > scale v3
-  -- > scale x y z
-  -- > scale xy z
-  -- > scale ex x
-  -- > scale ey y
-  --
-  -- > v3 :: V3 Double
-  -- > x,y,z,xy :: Double
-  -- > ex, ey :: E V3
-  scale, scaled :: a
+  scale, scaled :: r
 
 instance {-# INCOHERENT #-} (Num a, v ~ V3, amt ~ Double, PropagateColor a, a' ~ a) => Scale (E v -> amt -> a -> a') where
   scale (E e) amt a = propagateColor (W.scale (1 & e .~ amt)) a
   scaled (E e) amt a = propagateColor (W.scale (1 & e .~ amt)) a + a
 
+instance {-# INCOHERENT #-} (Num a, v ~ V3, v' ~ V3, amt ~ Double, amt' ~ Double, PropagateColor a, a' ~ a) => Scale (E v -> amt -> E v' -> amt' -> a -> a') where
+  scale (E e) amt (E f) amt' a = propagateColor (W.scale (1 & e .~ amt) . W.scale (1 & f .~ amt')) a
+  scaled (E e) amt (E f) amt' a = propagateColor (W.scale (1 & e .~ amt) . W.scale (1 & f .~ amt')) a + a
+
 instance {-# INCOHERENT #-} (Num a, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => Scale (x -> y -> z -> a -> a') where
   scale x y z a = propagateColor (W.scale (V3 x y z)) a
   scaled x y z a = propagateColor (W.scale (V3 x y z)) a + a
+
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, x' ~ Double, y' ~ Double, z' ~ Double, Num a, PropagateColor a, a'' ~ a) => Scale (x -> y -> z -> x' -> y' -> z' -> a -> a'') where
+  scale x y z x' y' z' a = propagateColor (W.scale (V3 x y z) . W.scale (V3 x' y' z')) a
+  scaled x y z x' y' z' a = propagateColor (W.scale (V3 x y z) . W.scale (V3 x' y' z')) a + a
 
 instance {-# INCOHERENT #-} (Num a, xy ~ Double, z ~ Double, PropagateColor a, a' ~ a) => Scale (xy -> z -> a -> a') where
   scale xy z a = propagateColor (W.scale (V3 xy xy z)) a
@@ -72,20 +68,50 @@ scaledOptic v
 class Scaled a where
   _scaled :: a
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (d -> e -> f -> Maybe (Optic' p g a a')) where
-  _scaled x y z = scaledOptic (V3 x y z)
+instance {-# OVERLAPPABLE #-} (ScaledOpticGo r t) => Scaled r where
+  _scaled = scaledOpticGo True id id
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (V3 d -> Maybe (Optic' p g a a')) where
-  _scaled v = scaledOptic v
+class Transformable t => ScaledOpticGo r t | r -> t where
+  scaledOpticGo :: Bool -> (t -> t) -> (t -> t) -> r
 
-instance {-# OVERLAPPABLE #-} (xy ~ Double, z ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (xy -> z -> Maybe (Optic' p g a a')) where
-  _scaled xy z = scaledOptic (V3 xy xy z)
+-- base case
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, a' ~ a, a ~ t) => ScaledOpticGo (Maybe (Optic' p g a a')) t where
+  scaledOpticGo valid forward backward
+    | valid = Just $ iso (propagateColor forward :: a' -> a) (propagateColor backward :: a -> a')
+    | otherwise = Nothing
 
-instance {-# OVERLAPS #-} (d ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (d -> Maybe (Optic' p g a a')) where
-  _scaled xyz = scaledOptic (V3 xyz xyz xyz)
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, ScaledOpticGo r t) => ScaledOpticGo (d -> e -> f -> r) t where
+  scaledOpticGo valid forward backward x y z =
+    let factors = V3 x y z
+        scaling = W.scale factors
+        inverse = W.scale (1 / factors)
+     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Profunctor p, Functor g, PropagateColor a, a' ~ a) => Scaled (E v -> amt -> Maybe (Optic' p g a a')) where
-  _scaled (E e) amt = scaledOptic (1 & e .~ amt)
+instance {-# INCOHERENT #-} (xy ~ Double, z ~ Double, ScaledOpticGo r t) => ScaledOpticGo (xy -> z -> r) t where
+  scaledOpticGo valid forward backward xy z =
+    let factors = V3 xy xy z
+        scaling = W.scale factors
+        inverse = W.scale (1 / factors)
+     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, ScaledOpticGo r t) => ScaledOpticGo (V3 d -> r) t where
+  scaledOpticGo valid forward backward factors =
+    let scaling = W.scale factors
+        inverse = W.scale (1 / factors)
+     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, ScaledOpticGo r t) => ScaledOpticGo (d -> r) t where
+  scaledOpticGo valid forward backward factor =
+    let scaling = W.uScale factor
+        inverse = W.uScale (1 / factor)
+     in scaledOpticGo (valid && not (WNZ.nearZero factor)) (forward . scaling) (inverse . backward)
+
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, ScaledOpticGo r t) => ScaledOpticGo (E v -> amt -> r) t where
+  scaledOpticGo valid forward backward (E e) amt =
+    let factors = 1 & e .~ amt
+        scaling = W.scale factors
+        inverse = W.scale (1 / factors)
+     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
 
 scaled2DOptic ::
   forall p g a a'.

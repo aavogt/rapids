@@ -51,6 +51,7 @@ library
       FlexibleContexts
       FlexibleInstances
       ForeignFunctionInterface
+      FunctionalDependencies
       MultiParamTypeClasses
       OverloadedStrings
       QuasiQuotes
