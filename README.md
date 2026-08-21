@@ -43,6 +43,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
         scale ex x
         scale ey y
 ```
+  - `stack, center, left, right :: E V3 -> Solid -> Solid -> Solid` translates the second argument to make the `axisAlignedBoundingBox`es do the thing. `stacked centered lefted righted` also union the first argument. The `unitCube` could be arranged relative to the `sphere` in different axes with `(flip (stacked ez) =<< flip (left ey) =<< flip (center ex) unitCube) sphere` (using `instance Monad (r ->)`), but flip is noisy, inlining flip will violates the convention that  `y' = f x y` is better than `y' = g y x` (`g = flip f`) for use with `&` `$` or `.`.
   - `section :: Solid -> [Path2D]` slice the solid with XY plane
   - Rapids.Path lets you use do notation to construct paths for example [loophv](https://gist.github.com/aavogt/1b59c0d02c5bcc129d743042b99839f9#file-main-hs-L39) or [do notation for paths](http://github.com/aavogt/rapids/blob/main/test/lib/Solids.hs)
   - variables in the above example expressions
