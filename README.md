@@ -43,7 +43,14 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
         scale ex x
         scale ey y
 ```
-  - `stack, center, left, right :: E V3 -> Solid -> Solid -> Solid` translates the second argument to make the `axisAlignedBoundingBox`es do the thing. `stacked centered lefted righted` also union the first argument. The `unitCube` could be arranged relative to the `sphere` in different axes with `(flip (stacked ez) =<< flip (left ey) =<< flip (center ex) unitCube) sphere` (using `instance Monad (r ->)`), but flip is noisy, inlining flip will violates the convention that  `y' = f x y` is better than `y' = g y x` (`g = flip f`) for use with `&` `$` or `.`.
+  - `axisAlignedBoundingBox` arrangements
+    - `stack, center, left, right :: E V3 -> Solid -> Solid -> Solid` translates the second Solid. That is:
+        - `stack ez a b == translate ez z b` where `z` makes the bottom of `b` coplanar with the top of `a`.
+        - `center ez a b == translate (V3 x y 0) b` where `x` `y` make the centers of the z-faces collinear.
+        - `left ex a b = translate ex x b` where `x` makes the left (lower x coordinate) faces coplanar
+        - `right ex a b = translate ex x b` where `x` makes the right (higher x coordinate) faces coplanar
+    - `stacked centered lefted righted` also union the first argument continuing the analogy with `mirrored` above. The `unitCube` could be arranged relative to the `sphere` in different axes with `(flip (stacked ez) =<< flip (left ey) =<< flip (center ex) unitCube) sphere` (using `instance Monad (r ->)`), but flip is noisy, inlining flip will violates the convention that  `y' = f x y` is better than `y' = g y x` (`g = flip f`) for use with `&` `$` or `.`.
+    - `[sa,sb,sc] = distribute ez [s1,s2,s3]`, `sa` is the lowest, `sb` is the middle, `sc` is the highest the middle elements translated along z for equal gaps/overlap. TODO or (optionally) restore the old ordering `[s1',s2',s3']`
   - `section :: Solid -> [Path2D]` slice the solid with XY plane
   - Rapids.Path lets you use do notation to construct paths for example [loophv](https://gist.github.com/aavogt/1b59c0d02c5bcc129d743042b99839f9#file-main-hs-L39) or [do notation for paths](http://github.com/aavogt/rapids/blob/main/test/lib/Solids.hs)
   - variables in the above example expressions

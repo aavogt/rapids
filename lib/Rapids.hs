@@ -41,7 +41,7 @@ import Control.Lens hiding (prism)
 import Control.Monad
 import Data.Fixed (mod')
 import Data.IORef
-import Data.List (tails)
+import Data.List (tails, sortOn, mapAccumL)
 import Data.Maybe
 import GHC.Float
 import GHC.TypeLits
@@ -738,3 +738,32 @@ right (E el) a b = fromJust do
   let bVal = b1 ^. el
   let val = max aVal bVal
   Just $ translate (E el) (val - aVal) a + translate (E el) (val - bVal) b
+
+-- Data.Semigroup.Min can't do this because it needs `instance Bounded Double`,
+data MinMaxSumCount = MinMaxSumCount !Double !Double !Double Int
+
+instance Semigroup MinMaxSumCount where
+  MinMaxSumCount a b c n <> MinMaxSumCount d e f m = MinMaxSumCount (min a d) (max b e) (c + f) (n+m)
+
+instance Monoid MinMaxSumCount where
+  mempty = MinMaxSumCount (1/0) (-(1/0)) 0 0
+
+distribute :: E V3 -> [Solid] -> Solid
+distribute e solids = unions (distributed e solids)
+
+distributed :: E V3 -> [Solid] -> [Solid]
+distributed _ [] = []
+distributed _ [s] = [s]
+distributed (E el) solids = fromJust do
+  aabbs <- mapM axisAlignedBoundingBox solids
+  let f (view el -> l, view el -> r) = MinMaxSumCount l r (r-l) 1
+  MinMaxSumCount l r occupied count <- Just (foldMap f aabbs)
+  let h = ((r - l) - occupied) / (fromIntegral count - 1)
+  let g s ((l,r), solid) = (s + h + r - l, (s - l, solid))
+  Just $ [ translate (E el) lp solid
+    | (lp, solid)
+       <- zip aabbs solids
+        & traversed . _1 . both %~ view el
+        & sortOn (^. _1 . _1)
+        & mapAccumL g 0
+        & snd ]
