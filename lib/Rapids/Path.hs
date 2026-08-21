@@ -143,7 +143,7 @@ appendSegment2D (newEnd, seg) = do
 arc :: W.Sense -> Double -> V2 Double -> PathState2 ()
 arc sense radius end = do
   (start, _) <- get
-  appendPath2D (W.arc sense radius end start)
+  appendPath2D (W.arc sense radius start end)
 
 arcTo :: W.Sense -> Double -> V2 Double -> PathState2 ()
 arcTo sense radius end = do
