@@ -258,30 +258,9 @@ instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, d ~ Double, PropagateCol
 instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, v ~ V3, ang ~ Double, PropagateColor a, a' ~ a) => Rotated (E v -> ang -> Optic' p g a a') where
   _rotated (E e) ang = iso (rotate (E e) ang :: a' -> a) (rotate (E e) (-ang) :: a -> a')
 
--- | Rotate by degrees around an axis specified in one of these ways:
-class RotateDeg a where
-  -- | @rotateDeg@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
-  --
-  -- > rotateDeg x y z deg
-  -- > rotateDeg v3 deg
-  -- > rotateDeg q  deg -- ignore the quaternion's magnitude
-  -- > rotateDeg ey deg
-  rotateDeg :: a
 
 fromDeg :: Double -> Double
 fromDeg a = mod2pi (a * pi / 180)
-
-instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => RotateDeg (x -> y -> z -> deg -> a -> a') where
-  rotateDeg x y z d a = propagateColor (W.rotate (V3 x y z) (fromDeg d)) a
-
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateDeg (V3 d -> deg -> a -> a') where
-  rotateDeg v d a = propagateColor (W.rotate v (fromDeg d)) a
-
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotateDeg (Quaternion d -> deg -> a -> a') where
-  rotateDeg q d = propagateColor (W.rotate (q ^. _yzw) (fromDeg d))
-
-instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotateDeg (E v -> deg -> a -> a') where
-  rotateDeg (E e) d a = propagateColor (W.rotate (0 & e .~ 1) (fromDeg d)) a
 
 -- \| @rotateDeg@ expressions of type 'Transformable' @a => Iso' a a@ (probably Iso 'Solid' 'Solid')
 --
@@ -289,20 +268,30 @@ instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) =
 -- > _rotatedDeg v3 deg
 -- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
 -- > _rotatedDeg ey deg
-class RotatedDeg a where
-  _rotatedDeg :: a
+class RotateDeg r where
+  rotateDeg :: r
 
-instance {-# INCOHERENT #-} (Profunctor p, Functor g, deg ~ Double, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a) => RotatedDeg (x -> y -> z -> deg -> Optic' p g a a') where
-  _rotatedDeg x y z d = iso (rotateDeg x y z d :: a' -> a) (rotateDeg x y z (-d) :: a -> a')
+instance {-# OVERLAPPABLE #-} (RotateDegGo r t, r ~ (t -> t)) => RotateDeg r where
+  rotateDeg = rotateDegGo (id :: t -> t)
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotatedDeg (V3 d -> deg -> Optic' p g a a') where
-  _rotatedDeg v d = iso (rotateDeg v d :: a' -> a) (rotateDeg v (-d) :: a -> a')
+class Transformable t => RotateDegGo r t where
+  rotateDegGo ::  (t -> t) -> r
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, deg ~ Double, d ~ Double, PropagateColor a, a' ~ a) => RotatedDeg (Quaternion d -> deg -> Optic' p g a a') where
-  _rotatedDeg q d = iso (rotateDeg q d :: a' -> a) (rotateDeg q (-d) :: a -> a')
+-- base case
+instance {-# OVERLAPPABLE #-} (PropagateColor a, a' ~ a, a~ t) => RotateDegGo (a -> a') t where
+  rotateDegGo acc = propagateColor acc
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, deg ~ Double, v ~ V3, PropagateColor a, a' ~ a) => RotatedDeg (E v -> deg -> Optic' p g a a') where
-  _rotatedDeg (E e) d = iso (rotateDeg (E e) d :: a' -> a) (rotateDeg (E e) (-d) :: a -> a')
+instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, RotateDegGo r t) => RotateDegGo (x -> y -> z -> deg -> r) t where
+  rotateDegGo acc x y z d = rotateDegGo (acc . W.rotate (V3 x y z) (fromDeg d))
+
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, RotateDegGo r t) => RotateDegGo (V3 d -> deg -> r) t where
+  rotateDegGo acc v d = rotateDegGo (acc . W.rotate v (fromDeg d))
+
+instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, RotateDegGo r t) => RotateDegGo (Quaternion d -> deg -> r) t where
+  rotateDegGo acc q d = rotateDegGo (acc . W.rotate (q ^. _yzw) (fromDeg d))
+
+instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, RotateDegGo r t) => RotateDegGo (E v -> deg -> r) t where
+  rotateDegGo acc (E e) d = rotateDegGo (acc . W.rotate (0 & e .~ 1) (fromDeg d))
 
 -- | Scale x y z axes
 class Scale a where
