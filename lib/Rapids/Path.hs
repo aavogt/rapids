@@ -34,6 +34,9 @@ import Control.Monad.Trans.State
 import Linear
 import qualified Waterfall.Path as W
 import qualified Waterfall.TwoD.Path2D as W
+import Waterfall (Path2D)
+import Control.Monad
+import Waterfall.Path (Path)
 
 type PathState = State (V3 Double, W.Path)
 
@@ -233,3 +236,33 @@ takePathFraction2D fraction = _2 %= W.takePathFraction2D fraction
 
 execPathState0 cmds = cmds `execState` (0, mempty) & snd
 execPathState cmds path = cmds `execState` (path, mempty) & snd
+
+rectangle :: Double -> Double -> Path2D
+rectangle w h = loophv [w, h, -w]
+
+-- | `circle diameter` in the xy plane (z=0)
+circle :: Double -> Path
+circle ((/ 2) -> radius) =
+  do
+    arcVia3D d l
+    arcVia3D u r
+    `execPathState` r
+  where
+    u = V3 0 radius 0
+    l = V3 (-radius) 0 0
+    d = V3 0 (-radius) 0
+    r = V3 radius 0 0
+
+
+-- | `[h,v,h,v,h,v] -> Path2D`
+-- with a final edge added to make a loop
+--
+-- rectangle above could be
+-- > rectangle x y = makeShape (loophv [x, y, -x])
+loophv :: [Double] -> Path2D
+loophv hvdims =
+  do
+    zipWithM_ (\f d -> lineRelative2D (f d)) (cycle [\x -> V2 x 0, \y -> V2 0 y]) hvdims
+    closeLoop2D
+    `execState` (0, mempty)
+    & snd

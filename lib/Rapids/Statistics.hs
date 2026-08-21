@@ -1,5 +1,15 @@
 -- TODO https://github.com/fpco/inline-c/tree/master/inline-c#vectors instead?
-module Rapids.Statistics where
+module Rapids.Statistics (
+  -- * merge compounds
+  volume,
+  centerOfMass,
+  momentOfInertia,
+  -- * split compounds
+  volumes,
+  centersOfMass,
+  momentsOfInertia,
+  componentCount,
+) where
 
 import Control.Monad.IO.Class (liftIO)
 import Foreign.C.Types (CDouble)
@@ -11,6 +21,7 @@ import qualified Language.C.Inline as C
 import Waterfall (Solid)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Linear (V3 (..))
+import Data.Text (center)
 
 C.context occtContext
 Cpp.include "<BRep_Builder.hxx>"
@@ -105,7 +116,9 @@ centersOfMass solid = unsafeFromAcquire $ liftIO $ do
     writeCentersOfMass solid output
     triples . map realToFrac <$> peekArray (3 * count) output
 
--- | Compute the moment of inertia of all solid components around an axis.
+-- | @momentOfInertia center axis solid@
+--
+-- Computes the moment of inertia of all solid components around an axis.
 momentOfInertia :: V3 Double -> V3 Double -> Solid -> Double
 momentOfInertia center axis solid = unsafeFromAcquire $ do
   let V3 cx cy cz = center
@@ -136,7 +149,9 @@ momentOfInertia center axis solid = unsafeFromAcquire $ do
     return props.MomentOfInertia(inertiaAxis);
   }|]
 
--- | Compute the moment of inertia of each solid component around an axis.
+-- | @momentsOfInertia center axis solid@
+--
+-- compute the moment of inertia of each solid component around an axis.
 momentsOfInertia :: V3 Double -> V3 Double -> Solid -> [Double]
 momentsOfInertia center axis solid = unsafeFromAcquire $ liftIO $ do
   count <- componentCount solid

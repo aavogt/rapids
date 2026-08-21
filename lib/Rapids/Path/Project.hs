@@ -41,7 +41,7 @@ Cpp.include "<Standard_Failure.hxx>"
 
 -- | i = projectPath j
 --
--- make a 3D path 2D by removing z components
+-- make a 3D path 2D by removing z components used by 'toShape'
 projectPath :: Path -> Path2D
 projectPath (Path (ComplexRawPath w)) = Path2D (ComplexRawPath (unsafeFromAcquire (projectPathRaw (castPtr w))))
 projectPath (Path (SinglePointRawPath v)) = Path2D (SinglePointRawPath (v & _z .~ 0))

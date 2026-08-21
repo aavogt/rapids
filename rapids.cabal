@@ -16,18 +16,27 @@ library
       InlineOCCT.Context
       Rapids
       Rapids.AABB
+      Rapids.AABB.Align
       Rapids.BoolOp
       Rapids.Color
       Rapids.ConvexHull
       Rapids.IniVal
+      Rapids.Mirror
+      Rapids.Num
       Rapids.Offset
+      Rapids.Pad
       Rapids.Path
       Rapids.Path.Project
+      Rapids.Reexports
       Rapids.Revolution
+      Rapids.Rotate
+      Rapids.Scale
       Rapids.Section
+      Rapids.Spiral
       Rapids.Statistics
       Rapids.ToPath
       Rapids.ToShape
+      Rapids.Translate
   other-modules:
       Paths_rapids
   autogen-modules:

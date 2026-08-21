@@ -15,7 +15,6 @@ import Waterfall hiding (unions, Shape, revolution)
 import Waterfall.Internal.Path.Common (RawPath (..))
 import Waterfall.Internal.Solid (emptySolid, solidFromAcquire)
 import Waterfall.TwoD.Internal.Path2D (Path2D (..))
-import Rapids.ToPath
 import Rapids.Color
 import Rapids.ToShape
 

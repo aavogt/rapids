@@ -5,8 +5,9 @@ import Foreign.Marshal.Array (allocaArray, peekArray)
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
-import Linear (V3 (..))
-import Waterfall (Solid)
+import Data.List (mapAccumL, sortOn)
+import Linear (V3 (..), ez)
+import Waterfall (Solid, union, unions)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 
 C.context occtContext
@@ -56,3 +57,5 @@ axisAlignedBoundingBox solid = unsafeFromAcquire $ liftIO $ allocaArray 6 $ \out
     else do
       [xMin, yMin, zMin, xMax, yMax, zMax] <- map realToFrac <$> peekArray 6 output
       pure $ Just (V3 xMin yMin zMin, V3 xMax yMax zMax)
+
+
