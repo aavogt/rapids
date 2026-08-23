@@ -13,6 +13,7 @@ module Rapids
 
     -- * create 2D
     module Rapids.Path,
+    module Rapids.Path.Offset,
     projectPath,
     module Rapids.Section,
 
@@ -76,6 +77,7 @@ import Rapids.Num
 import Rapids.Offset
 import Rapids.Pad
 import Rapids.Path
+import Rapids.Path.Offset
 import Rapids.Path.Project
 import Rapids.Reexports
 import Rapids.Revolution
