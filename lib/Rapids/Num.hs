@@ -19,6 +19,15 @@ instance Num Path where
   signum = error "Num Path missing signum"
   abs = error "Num Path missing abs"
 
+-- | needed for `instance Mirrored (_ -> Path -> Path)`
+instance Num Path2D where
+  (+) = (<>)
+  (-) = error "Num Path2D missing -"
+  (*) = error "Num Path2D missing *"
+  fromInteger = error "Num Path2D missing fromInteger"
+  signum = error "Num Path2D missing signum"
+  abs = error "Num Path2D missing abs"
+
 -- (-) could remove points, but maybe it needs to defer evaluation ie. store a sign bool (Bool, Path)
 -- because x + (0 - x) is supposed to work?
 
