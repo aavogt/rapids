@@ -14,36 +14,39 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `hull :: [V3 Double] -> Solid`
     - `hull :: [Path]      -> Solid`
     - `hull :: Path        -> Solid`
-  - `instance Num Solid` for `(+),(-),(*) :: Solid -> Solid -> Solid` for [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
-  - transformations
-    - `translate` `rotate` `rotateDeg` `scale` `mirror`  produce `Solid->Solid`
-    - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  add the original `mirrored ... solid = solid + mirror ... solid`
+  - Num instances for Path, Solid, and Shape so that + - * are short for [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
+  - transformations are varargs. Depending on types, 1 to 4 arguments specify a transformation, and multiple transformations can be done with one function. So `rotate ex x . rotate ey y` can be `rotate ex x ey y`.
+    - `translate` `rotate` `rotateDeg` `scale` `mirror`  return the changed solid
+    - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  also union the original (ie. `mirrored ... s = s + mirror ... s`)
     - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce `Iso' Solid Solid`
-    - example expressions of type `Solid -> Solid`:
+    - example expressions of type `Solid -> Solid`, where I each group of arguments (transformation) on a single line:
 ```
-        translate x y z
-        translate v3
-        translate ex x
-        translate ey y
-        translate ez z
-        mirror v3
-        mirror x y z
-        mirror ex x
-        mirror ey y
-        mirror ez z
-        mirror ex ey ez = mirror ex . mirror ey . mirror ez
-        rotate x y z radians
-        rotate v     radians
-        rotate q
-        rotate ex    radians
-        scale v3
-        scale xyz    -- uniform
-        scale x y z
-        scale xy z  = scale xy xy z
-        scale ex x
-        scale ey y
+        translate
+            x y z
+            v3
+            ex x
+            ey y
+            ez z
+        mirror
+            v3
+            x y z
+            ex
+            ey
+            ez
+        rotate
+          x y z radians
+          v3    radians
+          q
+          ex    radians
+        scale
+          v3
+          xyz
+          x y z
+          xy z
+          ex x
+          ey y
 ```
-  - `axisAlignedBoundingBox` arrangements
+  - `axisAlignedBoundingBox` arrangements covering many of the cases done in [Inkscape's Align and Distribute](https://inkscape-manuals.readthedocs.io/en/latest/align-and-distribute.html)
     - `stack, center, left, right :: E V3 -> Solid -> Solid -> Solid` translates the second Solid. That is:
         - `stack ez a b == translate ez z b` where `z` makes the bottom of `b` coplanar with the top of `a`.
         - `center ez a b == translate (V3 x y 0) b` where `x` `y` make the centers of the z-faces collinear.
