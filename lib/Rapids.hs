@@ -20,6 +20,7 @@ module Rapids
     -- * create 3D
     module Rapids.ConvexHull,
     module Rapids.Pad,
+    loft2,
     -- ** predefined solids
     module Waterfall.Solids,
     fustrum,
@@ -106,3 +107,7 @@ mkStepWriter = do
 -- | `fustrum d1 d2 h` has a circle of d2 at z=h, and another circle of d1 at z=0
 fustrum d1 d2 h = loft [circle d1, translate ez h (circle d2)]
 
+-- | 'loft2' does linear interpolation between vertices, whereas 'loft' introduces curvature.
+loft2 [x, y] = loft [x, y]
+loft2 (x : y : xs) = loft [x, y] + loft2 (y : xs)
+loft2 [] = mempty
