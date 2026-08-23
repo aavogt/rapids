@@ -10,18 +10,16 @@ mod2pi :: Double -> Double
 mod2pi a = a `mod'` (2 * pi)
 
 
--- | Rotate a 'Transformable' by radians around an axis specified in one of these ways:
-class Rotate r where
-  -- | @rotate@ expressions of type 'Transformable' @a => a -> a@ (probably 'Solid' -> 'Solid')
-  --
-  -- > rotate x y z rad
-  -- > rotate v     rad
-  -- > rotate q
-  -- > rotate ex    rad
-  rotate :: r
+-- * interface
 
-instance {-# OVERLAPPABLE #-} (RotateGo r t) => Rotate r where
-  rotate = rotateGo (id :: t -> t)
+-- | Rotate a 'Transformable' by radians around an axis specified in one of these ways:
+--
+-- > rotate x y z rad
+-- > rotate v     rad
+-- > rotate q
+-- > rotate ex    rad
+rotate :: (RotateGo r t) => r
+rotate = rotateGo (id :: t -> t)
 
 class W.Transformable t => RotateGo r t | r -> t where
   rotateGo :: (t -> t) -> r
@@ -42,11 +40,9 @@ instance {-# OVERLAPPABLE #-} (d ~ Double, RotateGo (r -> s) t) => RotateGo (Qua
 instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, RotateGo r t) => RotateGo (E v -> ang -> r) t where
   rotateGo acc (E e) ang = rotateGo (acc . W.rotate (0 & e .~ 1) (mod2pi ang))
 
-class Rotated r where
-  _rotated :: r
-
-instance {-# OVERLAPPABLE #-} (RotatedGo r t) => Rotated r where
-  _rotated = rotatedGo id id
+-- | Rotate through an 'Iso'.
+_rotated :: (RotatedGo r t) => r
+_rotated = rotatedGo id id
 
 
 class W.Transformable t => RotatedGo r t | r -> t where
@@ -88,11 +84,9 @@ fromDeg a = mod2pi (a * pi / 180)
 -- > _rotatedDeg v3 deg
 -- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
 -- > _rotatedDeg ey deg
-class RotateDeg r where
-  rotateDeg :: r
-
-instance {-# OVERLAPPABLE #-} (RotateDegGo r t) => RotateDeg r where
-  rotateDeg = rotateDegGo (id :: t -> t)
+-- | Rotate by degrees around an axis specified in one of these ways.
+rotateDeg :: (RotateDegGo r t) => r
+rotateDeg = rotateDegGo (id :: t -> t)
 
 class W.Transformable t => RotateDegGo r t | r -> t where
   rotateDegGo ::  (t -> t) -> r
