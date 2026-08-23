@@ -15,3 +15,7 @@ executables:
     main: statistics.hs
     dependencies:
       - test
+  fillet:
+    main: fillet.hs
+    dependencies:
+      - test

@@ -56,6 +56,38 @@ instance {-# OVERLAPPABLE #-} (Num a, Transformable2D a, a' ~ a, Double ~ d) => 
   scale2D xy a = W.scale2D (V2 xy xy) a
   scaled2D xy a = W.scale2D (V2 xy xy) a + a
 
+instance {-# INCOHERENT #-} (Num t, Transformable t) => ScaleGo (t -> t) t where
+  scaleGo keep acc x = if keep then x + acc x else acc x
+
+instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, v ~ V3, amt ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (E v -> amt -> a -> a') t where
+  scaleGo keep acc (E e) amt a = scaleGo keep (acc . W.scale (1 & e .~ amt)) a
+
+instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (x -> y -> z -> a -> a') t where
+  scaleGo keep acc x y z a = scaleGo keep (acc . W.scale (V3 x y z)) a
+
+instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, xy ~ Double, z ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (xy -> z -> a -> a') t where
+  scaleGo keep acc xy z a = scaleGo keep (acc . W.scale (V3 xy xy z)) a
+
+instance {-# OVERLAPS #-} (ScaleGo (t -> t) a, Num a, PropagateColor a, a' ~ a, a ~ t, Double ~ d) => ScaleGo (d -> a -> a') t where
+  scaleGo keep acc factor a = scaleGo keep (acc . W.uScale factor) a
+
+class Transformable2D t => Scale2DGo r t | r -> t where
+  scale2DGo :: Bool -> (t -> t) -> r
+
+scale2DResult keep acc transform original =
+  let result = acc (transform original)
+   in if keep then original + result else result
+
+instance {-# INCOHERENT #-} (Num a, v ~ V2, amt ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (E v -> amt -> a -> a') t where
+  scale2DGo keep acc (E e) amt a = scale2DResult keep acc (W.scale2D (1 & e .~ amt)) a
+
+instance {-# OVERLAPPABLE #-} (Num a, x ~ Double, y ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (x -> y -> a -> a') t where
+  scale2DGo keep acc x y a = scale2DResult keep acc (W.scale2D (V2 x y)) a
+
+instance {-# OVERLAPPABLE #-} (Num a, Transformable2D a, a' ~ a, a ~ t, Double ~ d) => Scale2DGo (d -> a -> a') t where
+  scale2DGo keep acc factor a = scale2DResult keep acc (W.scale2D (V2 factor factor)) a
+>>>>>>> 89468d2 (fix type inference making no arguments the default)
+
 scaledOptic ::
   forall p g a a'.
   (Profunctor p, Functor g, PropagateColor a, a' ~ a) =>

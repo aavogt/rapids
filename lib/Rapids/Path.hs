@@ -32,6 +32,7 @@ where
 import Control.Lens
 import Control.Monad.Trans.State
 import Linear
+import Rapids.Path.CornerOp
 import qualified Waterfall.Path as W
 import qualified Waterfall.TwoD.Path2D as W
 import Waterfall (Path2D)
@@ -266,3 +267,29 @@ loophv hvdims =
     closeLoop2D
     `execState` (0, mempty)
     & snd
+
+--
+
+-- | Chamfer the most recently placed corner.
+chamfer1 :: RToEither a => a -> PathState ()
+chamfer1 = applyCornerOperation 0 1
+
+-- | Chamfer the requested number of most recently placed corners.
+chamferN :: RToEither a => Int -> a -> PathState ()
+chamferN count = applyCornerOperation 0 count
+
+-- | Chamfer every corner already present in the path.
+chamfers :: RToEither a => a -> PathState ()
+chamfers = applyCornerOperation 0 maxBound
+
+-- | Fillet the most recently placed corner.
+fillet1 :: RToEither a => a -> PathState ()
+fillet1 = applyCornerOperation 1 1
+
+-- | Fillet the requested number of most recently placed corners.
+filletN :: RToEither a => Int -> a -> PathState ()
+filletN count = applyCornerOperation 1 count
+
+-- | Fillet every corner already present in the path.
+fillets :: RToEither a => a -> PathState ()
+fillets = applyCornerOperation 1 maxBound
