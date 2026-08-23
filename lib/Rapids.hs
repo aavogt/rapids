@@ -6,8 +6,7 @@
 -- affine transforms "Rapids#affine" and 'Pad' take a direction.
 -- The direction is specified as either "Linear"'s 'ex' 'ey' 'ez', as a 'V3', one or more 'Double's
 module Rapids
-  (
-    -- * IO
+  ( -- * IO
     mkStepWriterColor,
     mkStepWriter,
     module Rapids.IniVal,
@@ -21,11 +20,13 @@ module Rapids
     module Rapids.ConvexHull,
     module Rapids.Pad,
     loft2,
+
     -- ** predefined solids
     module Waterfall.Solids,
     fustrum,
 
     -- ** affine transforms #affine#
+
     -- |
     --
     --  'scaled' 'scaled2D' 'mirrored' 'translated' 'translated2D' 'rotated' 'rotatedDeg' include the original Solid,
@@ -35,6 +36,7 @@ module Rapids
     -- 'stack' 'center' 'left' 'right' only move the right Solid
     module Rapids.Scale,
     module Rapids.Mirror,
+
     -- *** rigid body
     module Rapids.Translate,
     module Rapids.Rotate,
@@ -64,7 +66,6 @@ where
 import Control.Applicative
 import Data.Fixed (mod')
 import Data.IORef
-import qualified Waterfall as W
 import Rapids.AABB
 import Rapids.AABB.Align
 import Rapids.Color
@@ -73,6 +74,7 @@ import Rapids.IniVal
 import Rapids.Mirror
 import Rapids.Num
 import Rapids.Offset
+import Rapids.Pad
 import Rapids.Path
 import Rapids.Path.Project
 import Rapids.Reexports
@@ -85,10 +87,10 @@ import Rapids.Statistics
 import Rapids.ToPath
 import Rapids.ToShape
 import Rapids.Translate
-import Rapids.Pad
 import System.Directory
 import System.FilePath
-import Waterfall.Solids hiding (Solid, prism, emptySolid, volume, momentOfInertia, centerOfMass)
+import qualified Waterfall as W
+import Waterfall.Solids hiding (Solid, centerOfMass, emptySolid, momentOfInertia, prism, volume)
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
