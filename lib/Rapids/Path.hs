@@ -1,7 +1,6 @@
-
 -- |  Waterfall suggests
 --
--- 'pathFrom' :: Monoid path => point -> [point -> (point, path)] -> path 
+-- 'pathFrom' :: Monoid path => point -> [point -> (point, path)] -> path
 --
 -- here is another take on that with the transformers package "Control.Monad.Trans.State".'State' type
 -- so that:
@@ -30,14 +29,13 @@ module Rapids.Path
 where
 
 import Control.Lens
+import Control.Monad
 import Control.Monad.Trans.State
 import Linear
 import Rapids.Path.CornerOp
+import Waterfall (Path, Path2D)
 import qualified Waterfall.Path as W
 import qualified Waterfall.TwoD.Path2D as W
-import Waterfall (Path2D)
-import Control.Monad
-import Waterfall.Path (Path)
 
 type PathState = State (V3 Double, W.Path)
 
@@ -236,6 +234,7 @@ takePathFraction2D :: Double -> PathState2 ()
 takePathFraction2D fraction = _2 %= W.takePathFraction2D fraction
 
 execPathState0 cmds = cmds `execState` (0, mempty) & snd
+
 execPathState cmds path = cmds `execState` (path, mempty) & snd
 
 rectangle :: Double -> Double -> Path2D
@@ -253,7 +252,6 @@ circle ((/ 2) -> radius) =
     l = V3 (-radius) 0 0
     d = V3 0 (-radius) 0
     r = V3 radius 0 0
-
 
 -- | `[h,v,h,v,h,v] -> Path2D`
 -- with a final edge added to make a loop
