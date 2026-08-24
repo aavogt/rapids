@@ -6,18 +6,18 @@ import qualified Data.Map as Map
 import Foreign hiding (with)
 import Language.C.Inline.Context
 import Language.C.Inline.Cpp
+import qualified Language.C.Inline.Cpp as Cpp
 import Language.C.Inline.HaskellIdentifier
 import Language.C.Types as C
 import Language.Haskell.TH as TH
 import Linear (V3 (..))
 import OpenCascade.GP.Types
 import OpenCascade.TopoDS.Types
-import Waterfall.Internal.Solid
 import Waterfall.Internal.Finalizers (toAcquire)
 import Waterfall.Internal.Path (Path (..))
 import Waterfall.Internal.Path.Common (RawPath (..))
+import Waterfall.Internal.Solid
 import Waterfall.Internal.ToOpenCascade (v3ToDir, v3ToPnt, v3ToVertex)
-import qualified Language.C.Inline.Cpp as Cpp
 
 getHsVariable :: String -> HaskellIdentifier -> TH.ExpQ
 getHsVariable err s = do
@@ -125,12 +125,14 @@ pntsAntiQuoter =
       aqMarshaller = \_purity _cTypes _cTy cId -> do
         hsExp <- getHsVariable "occtContext" cId
         hsExp' <-
-          [|\k -> do
+          [|
+            \k -> do
               let points = $(return hsExp) :: [V3 Double]
                   n = fromIntegral (length points)
                   coords = concatMap (\(V3 x y z) -> [realToFrac x, realToFrac y, realToFrac z]) points
               withArray coords $ \coordsPtr ->
-                bracket (c_newGpPntVector n coordsPtr) c_deleteGpPntVector k|]
+                bracket (c_newGpPntVector n coordsPtr) c_deleteGpPntVector k
+            |]
         hsTy <- [t|Ptr ()|]
         return (hsTy, hsExp')
     }

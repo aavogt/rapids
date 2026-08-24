@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- | Offsets of planar wires and faces.
 --
 -- This module uses 'BRepOffsetAPI_MakeOffset'.  A 'Path' or 'Path2D' is
