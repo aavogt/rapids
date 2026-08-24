@@ -14,6 +14,7 @@ import qualified Language.C.Inline.Cpp as Cpp
 import Linear (V3)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
+import OpenCascade.TopoDS.Types (Wire)
 import qualified Waterfall.Internal.Path as InternalPath
 import Waterfall.Internal.Path.Common (RawPath (..))
 import Waterfall.Path (Path)
@@ -56,7 +57,7 @@ applyCornerOperation operation requested radii = modify \es@(e, s) -> fromMaybe 
   Just (maybe e snd (W.pathEndpoints3D s), s)
 
 applyCornerOperation1 :: Int -> Int -> Either Double [Double] -> Path -> Maybe Path
-applyCornerOperation1 operation requested radii path@(InternalPath.rawPath -> ComplexRawPath wire) = do
+applyCornerOperation1 operation requested radii path = do
   let edgeCount = length (InternalPath.allPathEndpoints path)
       count = min (max 0 requested) edgeCount
       values = case radii of
@@ -70,16 +71,13 @@ applyCornerOperation1 operation requested radii path@(InternalPath.rawPath -> Co
       valueCountH :: CInt
       valueCountH = fromIntegral (length values)
   guard (edgeCount >= 2 && not (null values))
-  let inputWirePtr :: Ptr ()
-      inputWirePtr = castPtr wire
-      resultPtr :: Ptr ()
+  let resultPtr :: Ptr Wire
       resultPtr =
         unsafeFromAcquire $
           mkAcquire
             ( liftIO $ withArray cppValues $ \valuesPtr ->
-                castPtr
-                  <$> [Cpp.block| void* {
-            TopoDS_Wire* input = (TopoDS_Wire*)$(void* inputWirePtr);
+                [Cpp.block| TopoDS_Wire* {
+            TopoDS_Wire* input = $path:path;
             const int op = $(int operation');
             const int requestedCount = $(int requested');
             const int nvalues = $(int valueCountH);
@@ -173,4 +171,4 @@ applyCornerOperation1 operation requested radii path@(InternalPath.rawPath -> Co
             )
             (\ptr -> deleteShape (castPtr ptr))
   guard (resultPtr /= nullPtr)
-  Just $ InternalPath.Path $ ComplexRawPath $ castPtr resultPtr
+  Just $ InternalPath.Path $ ComplexRawPath resultPtr

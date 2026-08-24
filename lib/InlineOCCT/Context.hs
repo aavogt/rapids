@@ -13,6 +13,9 @@ import Linear (V3 (..))
 import OpenCascade.GP.Types
 import OpenCascade.TopoDS.Types
 import Waterfall.Internal.Solid
+import Waterfall.Internal.Finalizers (toAcquire)
+import Waterfall.Internal.Path (Path (..))
+import Waterfall.Internal.Path.Common (RawPath (..))
 import Waterfall.Internal.ToOpenCascade (v3ToDir, v3ToPnt, v3ToVertex)
 import qualified Language.C.Inline.Cpp as Cpp
 
@@ -38,7 +41,8 @@ tt =
     [ (f "Vertex", [t|Ptr Vertex|]),
       (f "Pnt", [t|Ptr Pnt|]),
       (f "Dir", [t|Ptr Dir|]),
-      (f "TopoDS_Shape", [t|Shape|])
+      (f "TopoDS_Shape", [t|Shape|]),
+      (f "TopoDS_Wire", [t|Wire|])
     ]
 
 f :: String -> TypeSpecifier
@@ -54,10 +58,31 @@ aq :: AntiQuoters
 aq =
   Map.fromList
     [ ("dir", SomeAntiQuoter dirAntiQuoter),
+      ("path", SomeAntiQuoter pathAntiQuoter),
       ("pnt", SomeAntiQuoter pntAntiQuoter),
       ("pnts", SomeAntiQuoter pntsAntiQuoter),
       ("solid", SomeAntiQuoter solidAntiQuoter)
     ]
+
+pathAntiQuoter :: AntiQuoter HaskellIdentifier
+pathAntiQuoter =
+  AntiQuoter
+    { aqParser = do
+        hId <- C.parseIdentifier
+        useCpp <- C.parseEnableCpp
+        let cId = mangleHaskellIdentifier useCpp hId
+        return (cId, p "TopoDS_Wire", hId),
+      aqMarshaller = \_purity _cTypes _cTy cId -> do
+        hsExp <- getHsVariable "occtContext" cId
+        hsExp' <- [|with (pathWire $(return hsExp))|]
+        hsTy <- [t|Ptr Wire|]
+        return (hsTy, hsExp')
+    }
+
+pathWire :: Path -> Acquire (Ptr Wire)
+pathWire path = toAcquire $ case path of
+  Path (ComplexRawPath wire) -> wire
+  _ -> nullPtr
 
 dirAntiQuoter :: AntiQuoter HaskellIdentifier
 dirAntiQuoter =
