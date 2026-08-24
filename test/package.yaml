@@ -19,3 +19,7 @@ executables:
     main: fillet.hs
     dependencies:
       - test
+  infer:
+    main: infer.hs
+    dependencies:
+      - test
