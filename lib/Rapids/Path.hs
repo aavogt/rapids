@@ -269,29 +269,25 @@ loophv hvdims =
     & snd
 
 -- | Chamfer the most recently placed corner.
-chamfer1 :: RToEither a => a -> PathState ()
-chamfer1 = applyCornerOperation 0 1
+chamfer1 :: ToRadii a => a -> PathState ()
+chamfer1 radii = applyCornerOperation 0 1 radii
 
 -- | Chamfer the requested number of most recently placed corners.
-chamferN :: RToEither a => Int -> a -> PathState ()
-chamferN count = applyCornerOperation 0 count
+chamferN :: ToRadii a => CInt -> a -> PathState ()
+chamferN count radii = applyCornerOperation 0 count radii
 
 -- | Chamfer every corner already present in the path.
-chamfers :: RToEither a => a -> PathState ()
-chamfers = applyCornerOperation 0 maxBound
+chamfers :: ToRadii a => a -> PathState ()
+chamfers radii = applyCornerOperation 0 maxBound radii
 
 -- | Fillet the most recently placed corner.
-fillet1 :: RToEither a => a -> PathState ()
-fillet1 = applyCornerOperation 1 1
+fillet1 :: ToRadii a => a -> PathState ()
+fillet1 radii = applyCornerOperation 1 1 radii
 
 -- | Fillet the requested number of most recently placed corners.
-filletN :: RToEither a => Int -> a -> PathState ()
-filletN count = applyCornerOperation 1 count
+filletN :: ToRadii a => CInt -> a -> PathState ()
+filletN count radii = applyCornerOperation 1 count radii
 
 -- | Fillet every corner already present in the path.
-fillets :: RToEither a => a -> PathState ()
-fillets = applyCornerOperation 1 maxBound
-
-offsetPath :: CInt -> Double -> PathState ()
-offsetPath i d = _2 %= RO.offsetPath i d
--- offsetPath :: CInt -> Double -> Path -> Path
+fillets :: ToRadii a => a -> PathState ()
+fillets radii = applyCornerOperation 1 maxBound radii

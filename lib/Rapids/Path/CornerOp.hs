@@ -35,52 +35,51 @@ Cpp.include "<algorithm>"
 Cpp.include "<cmath>"
 Cpp.include "<vector>"
 
-class RToEither a where
-  rToEither :: a -> Either Double [Double]
+-- | write x instead of having to write [x]
+class ToRadii a where
+  toRadii :: a -> [CDouble]
 
 -- default
-instance {-# INCOHERENT #-} d ~ Double => RToEither d where
-  rToEither = Left
+instance {-# INCOHERENT #-} d ~ CDouble => ToRadii d where
+  toRadii = (:[])
 
-instance RToEither [Double] where
-  rToEither = Right
-
+instance cdouble ~ CDouble => ToRadii [cdouble] where
+  toRadii = id
 
 -- | applyCornerOperation op requested radii
 --
 -- 0 chamfer
 -- 1 fillet
 -- requested number of operations
-applyCornerOperation :: (Monad m, RToEither a) => Int -> Int -> a -> StateT (V3 Double, Path) m ()
+applyCornerOperation :: (Monad m, ToRadii a) => CInt -- ^ 0 chamfer 1 fillet
+  -> CInt  -- ^ requested number
+  -> a -- ^ radii as Double or [Double]
+  -> StateT (V3 Double, Path) m ()
 applyCornerOperation operation requested radii = modify \es@(e, s) -> fromMaybe es do
-  s <- s & applyCornerOperation1 operation requested (rToEither radii)
+  s <- s & applyCornerOperation1 operation requested (toRadii radii)
   Just (maybe e snd (W.pathEndpoints3D s), s)
 
-applyCornerOperation1 :: Int -> Int -> Either Double [Double] -> Path -> Maybe Path
+applyCornerOperation1 :: CInt -- ^ 0 chamfer, 1 fillet
+  -> CInt -- ^ number of operations
+  -> [CDouble] -- ^ radius/radii
+  -> Path -> Maybe Path
 applyCornerOperation1 operation requested radii path = do
-  let edgeCount = length (InternalPath.allPathEndpoints path)
+  let edgeCount = fromIntegral $ length (InternalPath.allPathEndpoints path)
       count = min (max 0 requested) edgeCount
-      values = case radii of
-        Left radius -> replicate count radius
-        Right radii' -> take count radii'
-      cppValues = map realToFrac values :: [CDouble]
-      operation' :: CInt
-      operation' = fromIntegral operation
+      values = take (fromIntegral count) radii
       requested' :: CInt
       requested' = fromIntegral (max 0 (min requested (fromIntegral (maxBound :: CInt))))
-      valueCountH :: CInt
-      valueCountH = fromIntegral (length values)
   guard (edgeCount >= 2 && not (null values))
   let resultPtr :: Ptr Wire
       resultPtr =
         unsafeFromAcquire $
           mkAcquire
-            ( liftIO $ withArray cppValues $ \valuesPtr ->
+            ( liftIO $ withArrayLen values $ \(fromIntegral -> nvalues) valuesPtr ->
                 [Cpp.block| TopoDS_Wire* {
             TopoDS_Wire* input = $path:path;
-            const int op = $(int operation');
-            const int requestedCount = $(int requested');
-            const int nvalues = $(int valueCountH);
+            const int op = $(int operation);
+            const int requestedCount = $(int requested);
+            const int nvalues = $(int nvalues);
             const double* radii = $(double* valuesPtr);
 
         if (input == nullptr || input->IsNull() || requestedCount <= 0 || nvalues <= 0) {
