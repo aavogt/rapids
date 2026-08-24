@@ -1,5 +1,6 @@
 module Rapids.Path.CornerOp where
 
+import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State
@@ -36,6 +37,7 @@ Cpp.include "<vector>"
 class RToEither a where
   rToEither :: a -> Either Double [Double]
 
+-- default
 instance {-# INCOHERENT #-} d ~ Double => RToEither d where
   rToEither = Left
 
@@ -49,11 +51,12 @@ instance RToEither [Double] where
 -- 1 fillet
 -- requested number of operations
 applyCornerOperation :: (Monad m, RToEither a) => Int -> Int -> a -> StateT (V3 Double, Path) m ()
-applyCornerOperation operation requested radii =
-  modify (\s -> fromMaybe s $ applyCornerOperation1 operation requested (rToEither radii) s)
+applyCornerOperation operation requested radii = modify \es@(e, s) -> fromMaybe es do
+  s <- s & applyCornerOperation1 operation requested (rToEither radii)
+  Just (maybe e snd (W.pathEndpoints3D s), s)
 
-applyCornerOperation1 :: Int -> Int -> Either Double [Double] -> (V3 Double, Path) -> Maybe (V3 Double, Path)
-applyCornerOperation1 operation requested radii (current, path@(InternalPath.rawPath -> ComplexRawPath wire)) = do
+applyCornerOperation1 :: Int -> Int -> Either Double [Double] -> Path -> Maybe Path
+applyCornerOperation1 operation requested radii path@(InternalPath.rawPath -> ComplexRawPath wire) = do
   let edgeCount = length (InternalPath.allPathEndpoints path)
       count = min (max 0 requested) edgeCount
       values = case radii of
@@ -170,6 +173,4 @@ applyCornerOperation1 operation requested radii (current, path@(InternalPath.raw
             )
             (\ptr -> deleteShape (castPtr ptr))
   guard (resultPtr /= nullPtr)
-  let resultPath = InternalPath.Path (ComplexRawPath (castPtr resultPtr))
-      resultEnd = maybe current snd (W.pathEndpoints3D resultPath)
-  Just (resultEnd, resultPath)
+  Just $ InternalPath.Path $ ComplexRawPath $ castPtr resultPtr
