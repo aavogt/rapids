@@ -41,10 +41,12 @@ class (PropagateColor t, Transformable t) => ScaleGo r t | r -> t where
 class Transformable2D t => Scale2DGo r t | r -> t where
   scale2DGo :: (t -> t) -> (V2 Double -> t -> t) -> (Double -> t -> t) -> r
 
+instance {-# INCOHERENT #-} Transformable2D t => Scale2DGo (t -> t) t where scale2DGo acc _ _ a = acc a
+
 instance {-# INCOHERENT #-} (Num a, v ~ V2, amt ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (E v -> amt -> a -> a') t where
   scale2DGo acc f g (E e) amt a = scale2DGo (acc . f (1 & e .~ amt)) f g a
 
-instance {-# OVERLAPPABLE #-} (Num a, x ~ Double, y ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (x -> y -> a -> a') t where
+instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (x -> y -> a -> a') t where
   scale2DGo acc f g x y a = scale2DGo (acc . f (V2 x y)) f g a
 
 instance {-# OVERLAPPABLE #-} (Num a, Transformable2D a, a' ~ a, a ~ t, Double ~ d) => Scale2DGo (d -> a -> a') t where
