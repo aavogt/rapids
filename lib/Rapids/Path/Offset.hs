@@ -34,33 +34,16 @@ Cpp.include "<TopoDS_Face.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 Cpp.include "<TopoDS_Wire.hxx>"
 
--- | The way adjacent offset edges are joined at a corner.
---
--- These constructors have the same values as OCCT's
--- @GeomAbs_JoinType@ enumeration.
-data GeomAbs_JoinType
-  = GeomAbs_Arc
-  | GeomAbs_Tangent
-  | GeomAbs_Intersection
-  deriving (Eq, Ord, Show, Enum, Bounded)
-
--- | Short name for 'GeomAbs_JoinType'.
-type JoinType = GeomAbs_JoinType
-
-joinTypeCode :: GeomAbs_JoinType -> CInt
-joinTypeCode = fromIntegral . fromEnum
-
 -- | Offset a planar @TopoDS_Wire@, preserving its plane.
 --
 -- The returned pointer owns a new @TopoDS_Wire@ through the 'Acquire'
 -- finalizer.  The input wire must remain alive while the acquire action is
 -- used.
-offsetTopoDSWire :: GeomAbs_JoinType -> Double -> Ptr TopoDS.Wire -> Acquire (Ptr TopoDS.Wire)
-offsetTopoDSWire join amount input =
+offsetTopoDSWire :: CInt -> Double -> Ptr TopoDS.Wire -> Acquire (Ptr TopoDS.Wire)
+offsetTopoDSWire join' amount input =
   mkAcquire
     ( liftIO $ do
-        let join' = joinTypeCode join
-            amount' = realToFrac amount :: CDouble
+        let amount' = realToFrac amount :: CDouble
             input' = castPtr input :: Ptr ()
         castPtr
           <$> [Cpp.block| void* {
@@ -103,12 +86,11 @@ offsetTopoDSWire join amount input =
 -- Each wire is passed to OCCT's 'BRepOffsetAPI_MakeOffset::AddWire' before
 -- 'Perform' is called.  This is how holes and islands are added to a
 -- face-based offset.
-offsetTopoDSFace :: GeomAbs_JoinType -> Double -> Ptr TopoDS.Face -> [Ptr TopoDS.Wire] -> Acquire (Ptr TopoDS.Face)
-offsetTopoDSFace join amount input wires =
+offsetTopoDSFace :: CInt -> Double -> Ptr TopoDS.Face -> [Ptr TopoDS.Wire] -> Acquire (Ptr TopoDS.Face)
+offsetTopoDSFace join' amount input wires =
   mkAcquire
     ( liftIO $ withArray wires $ \wireArray -> do
-        let join' = joinTypeCode join
-            amount' = realToFrac amount :: CDouble
+        let amount' = realToFrac amount :: CDouble
             wireCount = fromIntegral (length wires) :: CInt
             input' = castPtr input :: Ptr ()
             wireArray' = castPtr wireArray :: Ptr ()
@@ -176,19 +158,19 @@ offsetTopoDSFace join amount input wires =
 --
 -- A path without a wire, such as 'EmptyRawPath' or a single point, cannot be
 -- offset and is returned unchanged.
-offsetPath :: GeomAbs_JoinType -> Double -> Path -> Path
+offsetPath :: CInt -> Double -> Path -> Path
 offsetPath join amount path@(Path (ComplexRawPath wire)) =
   Path . ComplexRawPath $ unsafeFromAcquire (offsetTopoDSWire join amount wire)
 offsetPath _ _ path = path
 
 -- | Offset a planar 'Path2D', preserving the @z = 0@ plane.
-offsetPath2D :: GeomAbs_JoinType -> Double -> Path2D -> Path2D
+offsetPath2D :: CInt -> Double -> Path2D -> Path2D
 offsetPath2D join amount (Path2D (ComplexRawPath wire)) =
   Path2D . ComplexRawPath $ unsafeFromAcquire (offsetTopoDSWire join amount wire)
 offsetPath2D _ _ path = path
 
 -- | Offset a planar 'Shape' whose underlying shape is a @TopoDS_Face@.
-offsetFace :: GeomAbs_JoinType -> Double -> Shape -> Shape
+offsetFace :: CInt -> Double -> Shape -> Shape
 offsetFace join amount (Shape face) =
   Shape . unsafeFromAcquire $ do
     result <- offsetTopoDSFace join amount (castPtr face) []
@@ -197,13 +179,13 @@ offsetFace join amount (Shape face) =
 -- | A face offset under construction.  Wires added with 'addWire' are passed
 -- to OCCT as holes or islands when 'performOffset' is called.
 data FaceOffset = FaceOffset
-  { faceOffsetJoin :: GeomAbs_JoinType,
+  { faceOffsetJoin :: CInt ,
     faceOffsetFace :: Shape,
     faceOffsetWires :: [Path2D]
   }
 
 -- | Start a face offset that may receive additional boundary wires.
-newFaceOffset :: GeomAbs_JoinType -> Shape -> FaceOffset
+newFaceOffset :: CInt -> Shape -> FaceOffset
 newFaceOffset join face = FaceOffset join face []
 
 -- | Add a hole or island to a face offset.
@@ -221,26 +203,26 @@ performOffset amount (FaceOffset join (Shape face) paths) =
     pure (castPtr result)
 
 -- | Offset a face and add all of its extra boundary wires in one expression.
-offsetFaceWithWires :: GeomAbs_JoinType -> Double -> Shape -> [Path2D] -> Shape
+offsetFaceWithWires :: CInt -> Double -> Shape -> [Path2D] -> Shape
 offsetFaceWithWires join amount face paths =
   performOffset amount (foldl' (flip addWire) (newFaceOffset join face) paths)
 
 -- | Offset a planar 'Path', selecting the corner join mode.
-offsetWire :: GeomAbs_JoinType -> Double -> Path -> Path
+offsetWire :: CInt -> Double -> Path -> Path
 offsetWire = offsetPath
 
 -- | Offset a planar 2D wire, selecting the corner join mode.
-offsetWire2D :: GeomAbs_JoinType -> Double -> Path2D -> Path2D
+offsetWire2D :: CInt -> Double -> Path2D -> Path2D
 offsetWire2D = offsetPath2D
 
 -- | Arc-joined planar wire offset.
 offsetWireArc :: Double -> Path -> Path
-offsetWireArc = offsetPath GeomAbs_Arc
+offsetWireArc = offsetPath 0
 
 -- | Arc-joined planar 2D wire offset.
 offsetWire2DArc :: Double -> Path2D -> Path2D
-offsetWire2DArc = offsetPath2D GeomAbs_Arc
+offsetWire2DArc = offsetPath2D 0
 
 -- | Arc-joined planar face offset.
 offsetFaceArc :: Double -> Shape -> Shape
-offsetFaceArc = offsetFace GeomAbs_Arc
+offsetFaceArc = offsetFace 0

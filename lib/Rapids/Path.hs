@@ -33,9 +33,11 @@ import Control.Monad
 import Control.Monad.Trans.State
 import Linear
 import Rapids.Path.CornerOp
+import qualified Rapids.Path.Offset as RO
 import Waterfall (Path, Path2D)
 import qualified Waterfall.Path as W
 import qualified Waterfall.TwoD.Path2D as W
+import Foreign.C
 
 type PathState = State (V3 Double, W.Path)
 
@@ -291,3 +293,7 @@ filletN count = applyCornerOperation 1 count
 -- | Fillet every corner already present in the path.
 fillets :: RToEither a => a -> PathState ()
 fillets = applyCornerOperation 1 maxBound
+
+offsetPath :: CInt -> Double -> PathState ()
+offsetPath i d = _2 %= RO.offsetPath i d
+-- offsetPath :: CInt -> Double -> Path -> Path
