@@ -11,12 +11,12 @@ import qualified Waterfall.Internal.NearZero as WNZ
 
 -- | Scale along one or more directions.
 scale :: (ScaleGo r t) => r
-scale = scaleGo False (id :: t -> t)
+scale = scaleGo (id :: t -> t) (propagateColor . W.scale) (propagateColor . W.uScale)
 
 -- | 'scale' except it also returns the original,
 -- which is only useful if a direction is negative
-scaled :: (ScaleGo r t) => r
-scaled = scaleGo True (id :: t -> t)
+scaled :: (Num t, ScaleGo r t) => r
+scaled = scaleGo (id :: t -> t) (\v x -> x + propagateColor (W.scale v) x) (\v x -> x + propagateColor (W.uScale v) x)
 
 _scaled :: (ScaledOpticGo r t) => r
 _scaled = scaledOpticGo True id id
@@ -24,55 +24,46 @@ _scaled = scaledOpticGo True id id
 -- ** 2D
 
 scale2D :: (Scale2DGo r t) => r
-scale2D = scale2DGo False (id :: t -> t)
+scale2D = scale2DGo (id :: t -> t) W.scale2D W.uScale2D
 
 -- | 'scale2D' except it also returns the original.
-scaled2D :: (Scale2DGo r t) => r
-scaled2D = scale2DGo True (id :: t -> t)
+scaled2D :: (Num t, Scale2DGo r t) => r
+scaled2D = scale2DGo (id :: t -> t) (\v x -> x + W.scale2D v x) (\v x -> x + W.uScale2D v x)
 
 _scaled2D :: (Scaled2DGo r) => r
 _scaled2D = scaled2DGo
 
 -- * implementation
 
-class (Transformable t) => ScaleGo r t | r -> t where
-  scaleGo :: Bool -> (t -> t) -> r
-
-scaleResult keep acc transform original =
-  let result = propagateColor (acc . transform) original
-   in if keep then original + result else result
+class (PropagateColor t, Transformable t) => ScaleGo r t | r -> t where
+  scaleGo :: (t -> t) -> (V3 Double -> t -> t) -> (Double -> t -> t) -> r
 
 class Transformable2D t => Scale2DGo r t | r -> t where
-  scale2DGo :: Bool -> (t -> t) -> r
-
-scale2DResult keep acc transform original =
-  let result = acc (transform original)
-   in if keep then original + result else result
+  scale2DGo :: (t -> t) -> (V2 Double -> t -> t) -> (Double -> t -> t) -> r
 
 instance {-# INCOHERENT #-} (Num a, v ~ V2, amt ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (E v -> amt -> a -> a') t where
-  scale2DGo keep acc (E e) amt a = scale2DResult keep acc (W.scale2D (1 & e .~ amt)) a
+  scale2DGo acc f g (E e) amt a = scale2DGo (acc . f (1 & e .~ amt)) f g a
 
 instance {-# OVERLAPPABLE #-} (Num a, x ~ Double, y ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (x -> y -> a -> a') t where
-  scale2DGo keep acc x y a = scale2DResult keep acc (W.scale2D (V2 x y)) a
+  scale2DGo acc f g x y a = scale2DGo (acc . f (V2 x y)) f g a
 
 instance {-# OVERLAPPABLE #-} (Num a, Transformable2D a, a' ~ a, a ~ t, Double ~ d) => Scale2DGo (d -> a -> a') t where
-  scale2DGo keep acc factor a = scale2DResult keep acc (W.scale2D (V2 factor factor)) a
+  scale2DGo acc f g factor a = scale2DGo (acc . g factor) f g a
 
 instance {-# INCOHERENT #-} (Num t, Transformable t) => ScaleGo (t -> t) t where
-  scaleGo keep acc x = if keep then x + acc x else acc x
+  scaleGo acc f g x = acc x
 
 instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, v ~ V3, amt ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (E v -> amt -> a -> a') t where
-  scaleGo keep acc (E e) amt a = scaleGo keep (acc . W.scale (1 & e .~ amt)) a
+  scaleGo acc f g (E e) amt a = scaleGo (acc . f (1 & e .~ amt)) f g a
 
 instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, x ~ Double, y ~ Double, z ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (x -> y -> z -> a -> a') t where
-  scaleGo keep acc x y z a = scaleGo keep (acc . W.scale (V3 x y z)) a
+  scaleGo acc f g x y z a = scaleGo (acc . f (V3 x y z)) f g a
 
 instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, xy ~ Double, z ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (xy -> z -> a -> a') t where
-  scaleGo keep acc xy z a = scaleGo keep (acc . W.scale (V3 xy xy z)) a
+  scaleGo acc f g xy z a = scaleGo (acc . f (V3 xy xy z)) f g a
 
 instance {-# OVERLAPS #-} (ScaleGo (t -> t) a, Num a, PropagateColor a, a' ~ a, a ~ t, Double ~ d) => ScaleGo (d -> a -> a') t where
-  scaleGo keep acc factor a = scaleGo keep (acc . W.uScale factor) a
-
+  scaleGo acc f g factor a = scaleGo (acc . g factor) f g a
 
 scaledOptic ::
   forall p g a a'.

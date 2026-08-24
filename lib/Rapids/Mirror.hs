@@ -16,53 +16,33 @@ import qualified Waterfall as W
 -- > mirror ey y
 -- > mirror ez z
 mirror :: (MirrorGo r t) => r
-mirror = mirrorGo (id :: t -> t)
+mirror = mirrorGo id (propagateColor . W.mirror)
 
 -- | 'mirror' except it also returns the original.
 mirrored :: (MirrorGo r t) => r
-mirrored = mirroredGo (id :: t -> t) (propagateColor (id :: t -> t))
+mirrored = mirrorGo id (\v x -> x + propagateColor (W.mirror v) x)
+
+-- | another way to write @_mirrored ... = 'involuted' (mirror ...)@
+_mirrored :: (MirroredGo r t) => r
+_mirrored = mirroredOpticGo (id :: t -> t) (id :: t -> t)
+
+-- * implementation
 
 class (W.Transformable t, Num t, PropagateColor t) => MirrorGo r t | r -> t where
-  mirrorGo :: (t -> t) -> r
-  mirroredGo :: (t -> t) -> (t -> t) -> r
+  mirrorGo :: (t -> t) -> (V3 Double -> t -> t) -> r
 
 -- base case
 instance {-# OVERLAPPABLE #-} (Num t, PropagateColor a, a' ~ a, a ~ t) => MirrorGo (a -> a') t where
-  mirrorGo acc = propagateColor acc
-  mirroredGo acc previous a = propagateColor acc a + previous a
-
-mirrorStep :: W.Transformable t => V3 Double -> t -> t
-mirrorStep = W.mirror
+  mirrorGo acc f x = acc x
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, MirrorGo r t) => MirrorGo (V3 d -> r) t where
-  mirrorGo acc v = mirrorGo (acc . mirrorStep v)
-  mirroredGo acc previous v =
-    let reflection = mirrorStep v
-        next = acc . reflection
-        nextPrevious a = previous a + propagateColor acc a
-     in mirroredGo next nextPrevious
-
+  mirrorGo acc f v = mirrorGo (acc . f v) f
 
 instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, MirrorGo r t) => MirrorGo (d -> e -> f -> r) t where
-  mirrorGo acc x y z = mirrorGo (acc . mirrorStep (V3 x y z))
-  mirroredGo acc previous x y z =
-    let reflection = mirrorStep (V3 x y z)
-        next = acc . reflection
-        nextPrevious a = previous a + propagateColor acc a
-     in mirroredGo next nextPrevious
-
+  mirrorGo acc f x y z = mirrorGo (acc . f (V3 x y z)) f
 
 instance {-# OVERLAPPABLE #-} (v ~ V3, MirrorGo r t) => MirrorGo (E v -> r) t where
-  mirrorGo acc (E e) = mirrorGo (acc . mirrorStep (0 & e .~ 1))
-  mirroredGo acc previous (E e) =
-    let reflection = mirrorStep (0 & e .~ 1)
-        next = acc . reflection
-        nextPrevious a = previous a + propagateColor acc a
-     in mirroredGo next nextPrevious
-
--- | Reflect through an 'Iso'.
-_mirrored :: (MirroredGo r t) => r
-_mirrored = mirroredOpticGo (id :: t -> t) (id :: t -> t)
+  mirrorGo acc f (E e) = mirrorGo (acc . f (0 & e .~ 1)) f
 
 class W.Transformable t => MirroredGo r t | r -> t where
   mirroredOpticGo :: (t -> t) -> (t -> t) -> r
@@ -73,15 +53,15 @@ instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, a' ~ a
 
 instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, MirroredGo r t) => MirroredGo (d -> e -> f -> r) t where
   mirroredOpticGo forward backward x y z =
-    let reflection = mirrorStep (V3 x y z)
+    let reflection = W.mirror (V3 x y z)
      in mirroredOpticGo (forward . reflection) (reflection . backward)
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, MirroredGo r t) => MirroredGo (V3 d -> r) t where
   mirroredOpticGo forward backward v =
-    let reflection = mirrorStep v
+    let reflection = W.mirror v
      in mirroredOpticGo (forward . reflection) (reflection . backward)
 
 instance {-# OVERLAPPABLE #-} (v ~ V3, MirroredGo r t) => MirroredGo (E v -> r) t where
   mirroredOpticGo forward backward (E e) =
-    let reflection = mirrorStep (0 & e .~ 1)
+    let reflection = W.mirror (0 & e .~ 1)
      in mirroredOpticGo (forward . reflection) (reflection . backward)

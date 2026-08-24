@@ -15,7 +15,23 @@ import qualified Waterfall as W
 -- > rotate q
 -- > rotate ex    rad
 rotate :: (RotateGo r t) => r
-rotate = rotateGo (id :: t -> t)
+rotate = rotateGo id \axis angle x -> W.rotate axis (mod2pi angle) x
+
+rotated :: (Num t, RotateGo r t) => r
+rotated = rotateGo id \axis angle x -> x + W.rotate axis (mod2pi angle) x
+
+-- \ Rotate a 'Transformable' by degrees around an axis specified in one of these ways:
+--
+-- > _rotatedDeg x y z deg
+-- > _rotatedDeg v3 deg
+-- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
+-- > _rotatedDeg ey deg
+rotateDeg :: (RotateGo r t) => r
+rotateDeg = rotateGo id \axis angle x -> W.rotate axis (fromDeg angle) x
+
+-- | 'rotatedDeg' is 'rotateDeg' which also adds the original at each step
+rotatedDeg :: (Num t, RotateGo r t) => r
+rotatedDeg = rotateGo id \axis angle x -> x + W.rotate axis (fromDeg angle) x
 
 -- | @_rotated@ produces a 'Transformable' @a =>@  'Iso'' @a a@ using the same arguments as 'rotate'.
 --
@@ -29,35 +45,32 @@ rotate = rotateGo (id :: t -> t)
 _rotated :: (RotatedGo r t) => r
 _rotated = rotatedGo id id
 
--- \ Rotate a 'Transformable' by degrees around an axis specified in one of these ways:
---
--- > _rotatedDeg x y z deg
--- > _rotatedDeg v3 deg
--- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
--- > _rotatedDeg ey deg
-rotateDeg :: (RotateDegGo r t) => r
-rotateDeg = rotateDegGo (id :: t -> t)
-
 -- * implementation
 
+fromDeg :: Double -> Double
+fromDeg a = (a * pi / 180) `mod'` (2*pi)
+
+mod2pi :: Double -> Double
+mod2pi a = a `mod'` (2 * pi)
+
 class W.Transformable t => RotateGo r t | r -> t where
-  rotateGo :: (t -> t) -> r
+  rotateGo :: (t -> t) -> (V3 Double -> Double -> t -> t) -> r
 
 -- base case
 instance {-# OVERLAPPABLE #-} (PropagateColor a, a' ~ a, a ~ t) => RotateGo (a -> a') t where
-  rotateGo acc = propagateColor acc
+  rotateGo acc f = propagateColor acc
 
 instance {-# INCOHERENT #-} (ang ~ Double, x ~ Double, y ~ Double, z ~ Double, RotateGo (r -> s) t) => RotateGo (x -> y -> z -> ang -> r -> s) t where
-  rotateGo acc x y z ang = rotateGo (acc . W.rotate (V3 x y z) (mod2pi ang))
+  rotateGo acc f x y z ang = rotateGo (acc . f (V3 x y z) ang) f
 
 instance {-# OVERLAPPABLE #-} (ang ~ Double, d ~ Double, RotateGo r t) => RotateGo (V3 d -> ang -> r) t where
-  rotateGo acc v ang = rotateGo (acc . W.rotate v (mod2pi ang))
+  rotateGo acc f v ang = rotateGo (acc . f v ang) f
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, RotateGo (r -> s) t) => RotateGo (Quaternion d -> r -> s) t where
-  rotateGo acc q = rotateGo (acc . W.rotate (q ^. _yzw) (acos (q ^. _x)))
+  rotateGo acc f q = rotateGo (acc . f (q ^. _yzw) (acos (q ^. _x))) f
 
 instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, RotateGo r t) => RotateGo (E v -> ang -> r) t where
-  rotateGo acc (E e) ang = rotateGo (acc . W.rotate (0 & e .~ 1) (mod2pi ang))
+  rotateGo acc f (E e) ang = rotateGo (acc . f (0 & e .~ 1) (mod2pi ang)) f
 
 class W.Transformable t => RotatedGo r t | r -> t where
   rotatedGo :: (t -> t) -> (t -> t) -> r
@@ -103,27 +116,3 @@ instance {-# OVERLAPPABLE #-} (W.Transformable t, v ~ V3, ang ~ Double,
         inverse = W.rotate (0 & e .~ 1) (mod2pi (-ang))
      in rotatedGo (forward . rotation) (inverse . backward)
 
-fromDeg :: Double -> Double
-fromDeg a = mod2pi (a * pi / 180)
-
-mod2pi :: Double -> Double
-mod2pi a = a `mod'` (2 * pi)
-
-class W.Transformable t => RotateDegGo r t | r -> t where
-  rotateDegGo ::  (t -> t) -> r
-
--- base case
-instance {-# OVERLAPPABLE #-} (PropagateColor a, a' ~ a, a~ t) => RotateDegGo (a -> a') t where
-  rotateDegGo acc = propagateColor acc
-
-instance {-# INCOHERENT #-} (deg ~ Double, x ~ Double, y ~ Double, z ~ Double, RotateDegGo (r -> s) t) => RotateDegGo (x -> y -> z -> deg -> r -> s) t where
-  rotateDegGo acc x y z d = rotateDegGo (acc . W.rotate (V3 x y z) (fromDeg d))
-
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, RotateDegGo r t) => RotateDegGo (V3 d -> deg -> r) t where
-  rotateDegGo acc v d = rotateDegGo (acc . W.rotate v (fromDeg d))
-
-instance {-# OVERLAPPABLE #-} (deg ~ Double, d ~ Double, RotateDegGo r t) => RotateDegGo (Quaternion d -> deg -> r) t where
-  rotateDegGo acc q d = rotateDegGo (acc . W.rotate (q ^. _yzw) (fromDeg d))
-
-instance {-# OVERLAPPABLE #-} (deg ~ Double, v ~ V3, RotateDegGo r t) => RotateDegGo (E v -> deg -> r) t where
-  rotateDegGo acc (E e) d = rotateDegGo (acc . W.rotate (0 & e .~ 1) (fromDeg d))
