@@ -10,6 +10,7 @@ import Data.Acquire (Acquire, mkAcquire)
 import Data.List (foldl')
 import Foreign (Ptr, castPtr, withArray)
 import Foreign.C.Types (CDouble, CInt)
+import Foreign.Marshal
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
@@ -87,9 +88,8 @@ offsetTopoDSWire join' amount input =
 offsetTopoDSFace :: CInt -> Double -> Ptr TopoDS.Face -> [Ptr TopoDS.Wire] -> Acquire (Ptr TopoDS.Face)
 offsetTopoDSFace join' amount input wires =
   mkAcquire
-    ( liftIO $ withArray wires $ \wireArray -> do
+    ( liftIO $ withArrayLen wires $ \(fromIntegral -> wireCount) wireArray -> do
         let amount' = realToFrac amount :: CDouble
-            wireCount = fromIntegral (length wires) :: CInt
             input' = castPtr input :: Ptr ()
             wireArray' = castPtr wireArray :: Ptr ()
         castPtr
@@ -174,52 +174,21 @@ offsetFace join amount (Shape face) =
     result <- offsetTopoDSFace join amount (castPtr face) []
     pure (castPtr result)
 
--- | A face offset under construction.  Wires added with 'addWire' are passed
--- to OCCT as holes or islands when 'performOffset' is called.
-data FaceOffset = FaceOffset
-  { faceOffsetJoin :: CInt ,
-    faceOffsetFace :: Shape,
-    faceOffsetWires :: [Path2D]
-  }
-
--- | Start a face offset that may receive additional boundary wires.
-newFaceOffset :: CInt -> Shape -> FaceOffset
-newFaceOffset join face = FaceOffset join face []
-
--- | Add a hole or island to a face offset.
---
--- Non-wire paths are ignored.  The wires are retained in insertion order and
--- each is supplied to OCCT through 'BRepOffsetAPI_MakeOffset::AddWire'.
-addWire path state = state {faceOffsetWires = path : faceOffsetWires state}
-
 -- | Run a face offset after all desired wires have been added.
-performOffset :: Double -> FaceOffset -> Shape
-performOffset amount (FaceOffset join (Shape face) paths) =
+performOffset :: Double -> CInt -> Shape -> [Path2D] -> Shape
+performOffset amount join (Shape face) paths =
   Shape . unsafeFromAcquire $ do
     let wires = [wire | Path2D (ComplexRawPath wire) <- reverse paths]
     result <- offsetTopoDSFace join amount (castPtr face) wires
     pure (castPtr result)
 
--- | Offset a face and add all of its extra boundary wires in one expression.
-offsetFaceWithWires :: CInt -> Double -> Shape -> [Path2D] -> Shape
-offsetFaceWithWires join amount face paths =
-  performOffset amount (foldl' (flip addWire) (newFaceOffset join face) paths)
-
--- | Offset a planar 'Path', selecting the corner join mode.
-offsetWire :: CInt -> Double -> Path -> Path
-offsetWire = offsetPath
-
--- | Offset a planar 2D wire, selecting the corner join mode.
-offsetWire2D :: CInt -> Double -> Path2D -> Path2D
-offsetWire2D = offsetPath2D
-
 -- | Arc-joined planar wire offset.
-offsetWireArc :: Double -> Path -> Path
-offsetWireArc = offsetPath 0
+offsetPathArc :: Double -> Path -> Path
+offsetPathArc = offsetPath 0
 
 -- | Arc-joined planar 2D wire offset.
-offsetWire2DArc :: Double -> Path2D -> Path2D
-offsetWire2DArc = offsetPath2D 0
+offsetPath2DArc :: Double -> Path2D -> Path2D
+offsetPath2DArc = offsetPath2D 0
 
 -- | Arc-joined planar face offset.
 offsetFaceArc :: Double -> Shape -> Shape
