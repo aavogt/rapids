@@ -13,6 +13,7 @@ module Rapids
 
     -- * create 2D
     module Rapids.Path,
+    module Rapids.Path.Offset,
     projectPath,
     module Rapids.Section,
 
