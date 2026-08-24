@@ -268,8 +268,6 @@ loophv hvdims =
     `execState` (0, mempty)
     & snd
 
---
-
 -- | Chamfer the most recently placed corner.
 chamfer1 :: RToEither a => a -> PathState ()
 chamfer1 = applyCornerOperation 0 1
