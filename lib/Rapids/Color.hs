@@ -1,6 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE DeriveLift #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | propagate face colors
 module Rapids.Color
@@ -46,6 +46,10 @@ module Rapids.Color
 
     -- * internals
     faceAttrsMap,
+    Transform3D (..),
+    composeTransform3D,
+    Transform2D (..),
+    composeTransform2D,
   )
 where
 
@@ -57,12 +61,13 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.StateVar
 import Data.These (These (..))
-import Foreign
+import Foreign hiding (rotate)
 import Foreign.C
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import Language.Haskell.TH (ExpQ, loc_filename, loc_start, location, stringE)
+import Language.Haskell.TH.Syntax
 import Linear (V3 (..))
 import OpenCascade.BOPAlgo.Operation (Operation (..))
 import qualified OpenCascade.BOPAlgo.Operation as BOPAlgo.Operation
@@ -74,7 +79,6 @@ import System.IO.Unsafe
 import Waterfall hiding (Shape, difference, intersection, intersections, union, unions)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Waterfall.Internal.Solid (Solid (Solid))
-import Language.Haskell.TH.Syntax
 
 C.context (occtContext <> Cpp.funCtx)
 Cpp.include "<TopExp_Explorer.hxx>"
@@ -158,7 +162,7 @@ setColor (normalizeColor -> color) (Solid raw) = unsafeFromAcquire do
   pure solid
 
 tagFaceNote :: String -> Solid -> Solid
-tagFaceNote note solid  = unsafeFromAcquire do
+tagFaceNote note solid = unsafeFromAcquire do
   liftIO $ withFaces_ solid $ \k -> modifyIORef' faceAttrsMap $ Map.alter (Just . combineNote note) k
   pure solid
 
@@ -168,6 +172,32 @@ faceKeys solid = do
   withFaces_ solid $ \k ->
     modifyIORef' keysRef (k :)
   reverse <$> readIORef keysRef
+
+newtype Transform3D = Transform3D {runTransform3D :: forall a. (Transformable a) => a -> a}
+
+composeTransform3D :: Transform3D -> Transform3D -> Transform3D
+composeTransform3D (Transform3D f) (Transform3D g) = Transform3D (f . g)
+
+newtype Transform2D = Transform2D {runTransform2D :: forall a. (Transformable2D a) => a -> a}
+
+composeTransform2D :: Transform2D -> Transform2D -> Transform2D
+composeTransform2D (Transform2D f) (Transform2D g) = Transform2D (f . g)
+
+instance (Transformable a) => Transformable [a] where
+  matTransform matrix = fmap (matTransform matrix)
+  scale factors = fmap (scale factors)
+  uScale factor = fmap (uScale factor)
+  rotate axis angle = fmap (rotate axis angle)
+  translate vector = fmap (translate vector)
+  mirror normal = fmap (mirror normal)
+
+instance (Transformable2D a) => Transformable2D [a] where
+  matTransform2D matrix = fmap (matTransform2D matrix)
+  rotate2D angle = fmap (rotate2D angle)
+  scale2D factors = fmap (scale2D factors)
+  uScale2D factor = fmap (uScale2D factor)
+  translate2D vector = fmap (translate2D vector)
+  mirror2D normal = fmap (mirror2D normal)
 
 class (Transformable a) => PropagateColor a where
   propagateColor :: (a -> a) -> (a -> a)
@@ -448,7 +478,7 @@ writeXCAFToSTEP filepath doc =
   }|]
 
 mkTaggedColor :: V3 CDouble -> ExpQ
-mkTaggedColor color = [| $tagLoc . setColor color|]
+mkTaggedColor color = [|$tagLoc . setColor color|]
 
 deriving instance Lift CDouble
 

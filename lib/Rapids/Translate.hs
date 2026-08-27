@@ -1,4 +1,5 @@
 module Rapids.Translate where
+
 import Control.Lens hiding (prism)
 import Linear
 import Rapids.Color
@@ -24,17 +25,16 @@ translate = translateGo (id :: t -> t) W.translate
 --
 -- doesn't make much sense for V3 Double
 translated :: (Num t, TranslateGo r t) => r
-translated = translateGo (id :: t -> t) \ v x -> x + W.translate v x
+translated = translateGo (id :: t -> t) \v x -> x + W.translate v x
 
--- | '_translated' is 'translate' returning an 'Iso''
---
--- type inference is somewhat broken with over/%~. So to rotate around z=-10,
---
--- > solid & simple . _translated ez 10 . simple %~ rotate ex pi
--- > simply (%~) (_translated ez 10) (rotate ex pi) solid
--- > simply over (_translated ez 10) (rotate ex pi) solid
-_translated :: TranslatedGo r t => r
-_translated = translatedGo id id
+-- | @_translated@ produces a type-changing 'Iso' using the same arguments as 'translate'.
+-- The input is translated before the operation; its result is translated back.
+_translated :: (Translated'Go r t) => r
+_translated = translated'Go (Transform3D id) (Transform3D id)
+
+-- | @_translated'@ is the endomorphic, overloaded form of '_translated'.
+_translated' :: (TranslatedGo r t) => r
+_translated' = translatedGo id id
 
 -- |
 -- > translate2D
@@ -51,19 +51,60 @@ translate2D = translate2DGo (id :: t -> t) W.translate2D
 translated2D :: (Num t, Translate2DGo r t) => r
 translated2D = translate2DGo (id :: t -> t) \v x -> x + W.translate2D v x
 
--- | '_translated2D' is 'translate2D' returning an 'Iso''
-_translated2D :: Translated2DGo r t => r
-_translated2D = translated2DGo id id
+-- | @_translated2D@ produces a type-changing 'Iso' from one or more axis/distance pairs.
+_translated2D :: (Translated2D'Go r t) => r
+_translated2D = translated2D'Go (Transform2D id) (Transform2D id)
+
+-- | @_translated2D'@ is the endomorphic, overloaded form of '_translated2D'.
+_translated2D' :: (Translated2DGo r t) => r
+_translated2D' = translated2DGo id id
+
+class (W.Transformable t) => Translated'Go r t | r -> t where
+  translated'Go :: Transform3D -> Transform3D -> r
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, W.Transformable b, a ~ t) => Translated'Go (Optic p g a b a b) t where
+  translated'Go forward backward = iso (propagateColor (runTransform3D forward)) (runTransform3D backward)
+
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, Translated'Go r t) => Translated'Go (d -> e -> f -> r) t where
+  translated'Go forward backward x y z =
+    let translation = Transform3D (W.translate (V3 x y z))
+        inverse = Transform3D (W.translate (V3 (-x) (-y) (-z)))
+     in translated'Go (composeTransform3D forward translation) (composeTransform3D inverse backward)
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, Translated'Go r t) => Translated'Go (V3 d -> r) t where
+  translated'Go forward backward v =
+    let translation = Transform3D (W.translate v)
+        inverse = Transform3D (W.translate (-v))
+     in translated'Go (composeTransform3D forward translation) (composeTransform3D inverse backward)
+
+instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, Translated'Go r t) => Translated'Go (E v -> amt -> r) t where
+  translated'Go forward backward (E e) amount =
+    let translation = Transform3D (W.translate (0 & e .~ amount))
+        inverse = Transform3D (W.translate (0 & e .~ -amount))
+     in translated'Go (composeTransform3D forward translation) (composeTransform3D inverse backward)
+
+class (Transformable2D t) => Translated2D'Go r t | r -> t where
+  translated2D'Go :: Transform2D -> Transform2D -> r
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, Transformable2D a, Transformable2D b, a ~ t) => Translated2D'Go (Optic p g a b a b) t where
+  translated2D'Go forward backward = iso (runTransform2D forward) (runTransform2D backward)
+
+instance {-# OVERLAPPING #-} (v ~ V2, amt ~ Double, Translated2D'Go r t) => Translated2D'Go (E v -> amt -> r) t where
+  translated2D'Go forward backward (E e) amount =
+    let translation = Transform2D (W.translate2D (0 & e .~ amount))
+        inverse = Transform2D (W.translate2D (0 & e .~ -amount))
+     in translated2D'Go (composeTransform2D forward translation) (composeTransform2D inverse backward)
 
 -- * implementation
 
-class W.Transformable t => TranslateGo r t | r -> t where
+class (W.Transformable t) => TranslateGo r t | r -> t where
   translateGo :: (t -> t) -> (V3 Double -> t -> t) -> r
 
 -- base case
 instance {-# OVERLAPPABLE #-} (Num t, PropagateColor a, a' ~ a, a ~ t) => TranslateGo (a -> a') t where
   translateGo acc f x = propagateColor acc x
-  -- should intermediates be kept too?
+
+-- should intermediates be kept too?
 
 instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, TranslateGo r t) => TranslateGo (d -> e -> f -> r) t where
   translateGo acc f x y z = translateGo (acc . f (V3 x y z)) f
@@ -74,8 +115,7 @@ instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, TranslateGo r t) => Transla
 instance {-# OVERLAPPABLE #-} (v ~ Double, TranslateGo r t) => TranslateGo (V3 v -> r) t where
   translateGo acc f v = translateGo (acc . f v) f
 
-
-class W.Transformable t => TranslatedGo r t | r -> t where
+class (W.Transformable t) => TranslatedGo r t | r -> t where
   translatedGo :: (t -> t) -> (t -> t) -> r
 
 -- base case
@@ -100,7 +140,7 @@ instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, TranslatedGo r t) => Transl
         inverse = W.translate (0 & e .~ -amt)
      in translatedGo (forward . translation) (inverse . backward)
 
-class W.Transformable2D t => Translate2DGo r t | r -> t where
+class (W.Transformable2D t) => Translate2DGo r t | r -> t where
   translate2DGo :: (t -> t) -> (V2 Double -> t -> t) -> r
 
 -- base case
@@ -116,7 +156,7 @@ instance {-# OVERLAPPABLE #-} (v ~ V2, amt ~ Double, Translate2DGo r t) => Trans
 instance {-# OVERLAPPABLE #-} (v ~ Double, Translate2DGo r t) => Translate2DGo (V2 v -> r) t where
   translate2DGo acc f v = translate2DGo (acc . f v) f
 
-class W.Transformable2D t => Translated2DGo r t | r -> t where
+class (W.Transformable2D t) => Translated2DGo r t | r -> t where
   translated2DGo :: (t -> t) -> (t -> t) -> r
 
 -- base case

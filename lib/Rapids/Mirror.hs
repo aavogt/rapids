@@ -22,9 +22,34 @@ mirror = mirrorGo id (propagateColor . W.mirror)
 mirrored :: (MirrorGo r t) => r
 mirrored = mirrorGo id (\v x -> x + propagateColor (W.mirror v) x)
 
--- | another way to write @_mirrored ... = 'involuted' (mirror ...)@
-_mirrored :: (MirroredGo r t) => r
-_mirrored = mirroredOpticGo (id :: t -> t) (id :: t -> t)
+-- | @_mirrored@ produces a type-changing 'Iso' using the same arguments as 'mirror'.
+_mirrored :: (Mirrored'Go r t) => r
+_mirrored = mirrored'Go (Transform3D id) (Transform3D id)
+
+-- | @_mirrored'@ is the endomorphic, overloaded form of '_mirrored'.
+_mirrored' :: (MirroredGo r t) => r
+_mirrored' = mirroredOpticGo (id :: t -> t) (id :: t -> t)
+
+class (W.Transformable t) => Mirrored'Go r t | r -> t where
+  mirrored'Go :: Transform3D -> Transform3D -> r
+
+instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, W.Transformable b, a ~ t) => Mirrored'Go (Optic p g a b a b) t where
+  mirrored'Go forward backward = iso (propagateColor (runTransform3D forward)) (runTransform3D backward)
+
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, Mirrored'Go r t) => Mirrored'Go (d -> e -> f -> r) t where
+  mirrored'Go forward backward x y z =
+    let reflection = Transform3D (W.mirror (V3 x y z))
+     in mirrored'Go (composeTransform3D forward reflection) (composeTransform3D reflection backward)
+
+instance {-# OVERLAPPABLE #-} (d ~ Double, Mirrored'Go r t) => Mirrored'Go (V3 d -> r) t where
+  mirrored'Go forward backward v =
+    let reflection = Transform3D (W.mirror v)
+     in mirrored'Go (composeTransform3D forward reflection) (composeTransform3D reflection backward)
+
+instance {-# OVERLAPPABLE #-} (v ~ V3, Mirrored'Go r t) => Mirrored'Go (E v -> r) t where
+  mirrored'Go forward backward (E e) =
+    let reflection = Transform3D (W.mirror (0 & e .~ 1))
+     in mirrored'Go (composeTransform3D forward reflection) (composeTransform3D reflection backward)
 
 -- * implementation
 
@@ -44,7 +69,7 @@ instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, MirrorGo r t) =
 instance {-# OVERLAPPABLE #-} (v ~ V3, MirrorGo r t) => MirrorGo (E v -> r) t where
   mirrorGo acc f (E e) = mirrorGo (acc . f (0 & e .~ 1)) f
 
-class W.Transformable t => MirroredGo r t | r -> t where
+class (W.Transformable t) => MirroredGo r t | r -> t where
   mirroredOpticGo :: (t -> t) -> (t -> t) -> r
 
 -- base case
