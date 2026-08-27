@@ -27,6 +27,12 @@ translated :: (Num t, TranslateGo r t) => r
 translated = translateGo (id :: t -> t) \ v x -> x + W.translate v x
 
 -- | '_translated' is 'translate' returning an 'Iso''
+--
+-- type inference is somewhat broken with over/%~. So to rotate around z=-10,
+--
+-- > solid & simple . _translated ez 10 . simple %~ rotate ex pi
+-- > simply (%~) (_translated ez 10) (rotate ex pi) solid
+-- > simply over (_translated ez 10) (rotate ex pi) solid
 _translated :: TranslatedGo r t => r
 _translated = translatedGo id id
 
