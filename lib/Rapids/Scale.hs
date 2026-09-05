@@ -102,6 +102,9 @@ instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, x ~ Double, y ~ Double, 
 instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, xy ~ Double, z ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (xy -> z -> a -> a') t where
   scaleGo acc f g xy z a = scaleGo (acc . f (V3 xy xy z)) f g a
 
+instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, d ~ Double, PropagateColor a, a' ~ a, a ~ t) => ScaleGo (V3 d -> a -> a') t where
+  scaleGo acc f g v a = scaleGo (acc . f v) f g a
+
 instance {-# OVERLAPS #-} (ScaleGo (t -> t) a, Num a, PropagateColor a, a' ~ a, a ~ t, Double ~ d) => ScaleGo (d -> a -> a') t where
   scaleGo acc f g factor a = scaleGo (acc . g factor) f g a
 
