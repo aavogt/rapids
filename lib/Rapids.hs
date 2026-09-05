@@ -43,6 +43,7 @@ module Rapids
     module Rapids.Rotate,
     module Rapids.AABB.Align,
     axisAlignedBoundingBox,
+    aabb,
 
     -- ** others
     module Rapids.Revolution,
@@ -93,6 +94,7 @@ import System.Directory
 import System.FilePath
 import qualified Waterfall as W
 import Waterfall.Solids hiding (Solid, centerOfMass, emptySolid, momentOfInertia, prism, volume)
+import Rapids.AABB.Lens (aabb)
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step

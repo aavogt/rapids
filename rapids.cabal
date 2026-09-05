@@ -17,6 +17,7 @@ library
       Rapids
       Rapids.AABB
       Rapids.AABB.Align
+      Rapids.AABB.Lens
       Rapids.BoolOp
       Rapids.Color
       Rapids.ConvexHull
