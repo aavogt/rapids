@@ -1,32 +1,13 @@
 module Rapids.Pad where
 
-import Control.Applicative
 import Data.Fixed (mod')
-import Data.IORef
 import qualified Waterfall as W
-import Rapids.AABB
-import Rapids.AABB.Align
 import Rapids.Color
-import Rapids.ConvexHull
-import Rapids.IniVal
-import Rapids.Mirror
-import Rapids.Num
-import Rapids.Offset
-import Rapids.Path
-import Rapids.Path.Project
+import Rapids.Num ()
 import Rapids.Reexports
-import Rapids.Revolution
-import Rapids.Rotate
-import Rapids.Scale
-import Rapids.Section
-import Rapids.Spiral
-import Rapids.Statistics
 import Rapids.ToPath
 import Rapids.ToShape
 import Rapids.Translate
-import System.Directory
-import System.FilePath
-import Waterfall.Solids hiding (Solid, prism, emptySolid, volume, momentOfInertia, centerOfMass)
 
 -- | pad is like freecad PartDesign::Pad. It sweeps a shape, or lofts a uScale2D version
 class Pad a where
