@@ -18,6 +18,7 @@ import Waterfall.Internal.Path (Path (..))
 import Waterfall.Internal.Path.Common (RawPath (..))
 import Waterfall.Internal.Solid
 import Waterfall.Internal.ToOpenCascade (v3ToDir, v3ToPnt, v3ToVertex)
+import qualified Waterfall.TwoD.Internal.Shape as W
 
 getHsVariable :: String -> HaskellIdentifier -> TH.ExpQ
 getHsVariable err s = do
@@ -59,6 +60,7 @@ aq =
   Map.fromList
     [ ("dir", SomeAntiQuoter dirAntiQuoter),
       ("path", SomeAntiQuoter pathAntiQuoter),
+      ("shape", SomeAntiQuoter shapeAntiQuoter),
       ("pnt", SomeAntiQuoter pntAntiQuoter),
       ("pnts", SomeAntiQuoter pntsAntiQuoter),
       ("solid", SomeAntiQuoter solidAntiQuoter)
@@ -73,17 +75,26 @@ pathAntiQuoter =
         let cId = mangleHaskellIdentifier useCpp hId
         return (cId, p "TopoDS_Wire", hId),
       aqMarshaller = \_purity _cTypes _cTy cId -> do
-        hsExp <- getHsVariable "occtContext" cId
-        hsExp' <- [|with (pathWire $(return hsExp))|]
+        hsExp' <- [| with $ toAcquire $ case $(getHsVariable "occtContext" cId) of
+          Path (ComplexRawPath wire) -> wire
+          _ -> nullPtr |]
         hsTy <- [t|Ptr Wire|]
         return (hsTy, hsExp')
     }
 
-pathWire :: Path -> Acquire (Ptr Wire)
-pathWire path = mkAcquire (return $ case path of
-    Path (ComplexRawPath wire) -> wire
-    _ -> nullPtr)
-  (\(castPtr -> ptr) -> [Cpp.block| void { delete (TopoDS_Wire*)$(void* ptr); } |])
+shapeAntiQuoter :: AntiQuoter HaskellIdentifier
+shapeAntiQuoter =
+  AntiQuoter
+    { aqParser = do
+        hId <- C.parseIdentifier
+        useCpp <- C.parseEnableCpp
+        let cId = mangleHaskellIdentifier useCpp hId
+        return (cId, p "TopoDS_Shape", hId),
+      aqMarshaller = \_purity _cTypes _cTy cId -> do
+        hsExp' <- [|with $ toAcquire case $(getHsVariable "occtContext" cId) of W.Shape a -> a |]
+        hsTy <- [t|Ptr Shape|]
+        return (hsTy, hsExp')
+    }
 
 dirAntiQuoter :: AntiQuoter HaskellIdentifier
 dirAntiQuoter =
