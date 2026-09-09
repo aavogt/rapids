@@ -70,11 +70,8 @@ applyCornerOperation1 operation requested radii path = do
       requested' :: CInt
       requested' = fromIntegral (max 0 (min requested (fromIntegral (maxBound :: CInt))))
   guard (edgeCount >= 2 && not (null values))
-  let resultPtr :: Ptr Wire
-      resultPtr =
-        unsafeFromAcquire $
-          mkAcquire
-            ( liftIO $ withArrayLen values $ \(fromIntegral -> nvalues) valuesPtr ->
+  Just $ ownPath
+            $ withArrayLen values $ \(fromIntegral -> nvalues) valuesPtr ->
                 [Cpp.block| TopoDS_Wire* {
             TopoDS_Wire* input = $path:path;
             const int op = $(int operation);
@@ -167,7 +164,3 @@ applyCornerOperation1 operation requested radii path = do
           return nullptr;
         }
       } |]
-            )
-            (\ptr -> deleteShape (castPtr ptr))
-  guard (resultPtr /= nullPtr)
-  Just $ InternalPath.Path $ ComplexRawPath resultPtr
