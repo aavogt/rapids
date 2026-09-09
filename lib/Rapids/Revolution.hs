@@ -3,22 +3,18 @@
 module Rapids.Revolution where
 
 import Data.Acquire (mkAcquire)
-import Foreign hiding (rotate)
 import Foreign.C.Types (CDouble (CDouble))
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import Linear (unit, _x)
-import OpenCascade.TopoDS (Shape)
-import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
-import Waterfall hiding (unions, Shape, revolution)
+import Waterfall ( Path, shapePaths, Solid, Transformable(rotate) )
 import Waterfall.Internal.Path.Common (RawPath (..))
-import Waterfall.Internal.Solid (emptySolid, solidFromAcquire)
 import Waterfall.TwoD.Internal.Path2D (Path2D (..))
+import Waterfall.Internal.Path (Path(..))
 import Rapids.Color
 import Rapids.ToShape
 import Data.Coerce (coerce)
-import Waterfall.Internal.Path (Path(..))
 
 C.context occtContext
 Cpp.include "<Bnd_Box.hxx>"
