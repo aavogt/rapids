@@ -28,6 +28,10 @@ Cpp.include "<BRepOffsetAPI_MakeOffset.hxx>"
 Cpp.include "<GeomAbs_JoinType.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
 Cpp.include "<TopExp_Explorer.hxx>"
+Cpp.include "<BRepAdaptor_Curve.hxx>"
+Cpp.include "<BRepBuilderAPI_MakeEdge.hxx>"
+Cpp.include "<BRepBuilderAPI_MakeWire.hxx>"
+Cpp.include "<gp_Vec.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 Cpp.include "<TopAbs_ShapeEnum.hxx>"
 Cpp.include "<TopoDS.hxx>"
@@ -47,26 +51,64 @@ offsetPath amount join input =
   [Cpp.block| TopoDS_Wire* {
     TopoDS_Wire* spine = $path:input;
     if (spine == nullptr || spine->IsNull()) {
-      return new TopoDS_Wire();
+      return nullptr;
     }
 
     try {
+      TopExp_Explorer edgeExplorer(*spine, TopAbs_EDGE);
+      if (!edgeExplorer.More()) {
+        return nullptr;
+      }
+      TopoDS_Edge edge = TopoDS::Edge(edgeExplorer.Current());
+      edgeExplorer.Next();
+      if (!edgeExplorer.More()) {
+        BRepAdaptor_Curve curve(edge);
+        gp_Pnt start = curve.Value(curve.FirstParameter());
+        gp_Pnt end = curve.Value(curve.LastParameter());
+        gp_Vec tangent(start, end);
+        if (tangent.SquareMagnitude() <= 1e-24) {
+          return nullptr;
+        }
+
+        gp_Vec planeNormal(0.0, 0.0, 1.0);
+        if (tangent.Crossed(planeNormal).SquareMagnitude() <= 1e-24) {
+          planeNormal = gp_Vec(1.0, 0.0, 0.0);
+        }
+        gp_Vec side = planeNormal.Crossed(tangent);
+        side.Normalize();
+        side *= $(double amount);
+
+        gp_Pnt startLeft = start.Translated(side);
+        gp_Pnt endLeft = end.Translated(side);
+        gp_Pnt startRight = start.Translated(-side);
+        gp_Pnt endRight = end.Translated(-side);
+        BRepBuilderAPI_MakeWire wire;
+        wire.Add(BRepBuilderAPI_MakeEdge(startLeft, endLeft).Edge());
+        wire.Add(BRepBuilderAPI_MakeEdge(endLeft, endRight).Edge());
+        wire.Add(BRepBuilderAPI_MakeEdge(endRight, startRight).Edge());
+        wire.Add(BRepBuilderAPI_MakeEdge(startRight, startLeft).Edge());
+        if (!wire.IsDone()) {
+          return nullptr;
+        }
+        return new TopoDS_Wire(wire.Wire());
+      }
+
       BRepOffsetAPI_MakeOffset offset(
           *spine,
           static_cast<GeomAbs_JoinType>($(int join)),
           Standard_False);
       offset.Perform($(double amount));
       if (!offset.IsDone()) {
-        return new TopoDS_Wire();
+        return nullptr;
       }
 
       const TopoDS_Shape& result = offset.Shape();
       if (result.IsNull() || result.ShapeType() != TopAbs_WIRE) {
-        return new TopoDS_Wire();
+        return nullptr;
       }
       return new TopoDS_Wire(TopoDS::Wire(result));
     } catch (...) {
-      return new TopoDS_Wire();
+      return nullptr;
     }
   } |]
     & ownPath

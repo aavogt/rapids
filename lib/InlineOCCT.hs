@@ -54,7 +54,9 @@ c_deleteTopoDSShape (castPtr -> ptr) = [Cpp.block| void { delete (TopoDS_Shape*)
 
 
 ownPath :: IO (Ptr TopoDS.Wire) -> Path
-ownPath io = Path $ ComplexRawPath $ unsafeFromAcquire $ mkAcquire io c_deleteTopoDSWire
+ownPath io = unsafeFromAcquire $ do
+  ptr <- mkAcquire io c_deleteTopoDSWire
+  pure $ if ptr == nullPtr then mempty else Path $ ComplexRawPath ptr
 
 ownShape :: IO (Ptr TopoDS.Shape) -> Shape
 ownShape io = Shape $ unsafeFromAcquire $ mkAcquire io c_deleteTopoDSShape

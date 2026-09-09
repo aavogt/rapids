@@ -28,7 +28,7 @@ oSolid = fromPaths [ scale w h 1 (circle 1) ]
 
 ySolid :: Solid
 ySolid = fromPaths [ ln (V3 (w/2) (h/2) 0), ln (V3 (-w/2) (h/2) 0), ln (V3 0 (-h/2) 0) ]
-  where ln to = line 0 (V3 1e-3 0 0) <> line (V3 1e-3 0 0) to
+  where ln to = line 0 to
 
 zSolid :: Solid
 zSolid = fromPaths [ toPath $ rotate2D angle $ execPathState0 do
@@ -37,7 +37,7 @@ zSolid = fromPaths [ toPath $ rotate2D angle $ execPathState0 do
   | angle <- [0, pi]
  ]
 
-xSolid = fromPaths [ line 0 (V3 a b 0) <> line (V3 a b 0) (V3 (a+1e-3) b 0) | a <- [-w/2, w/2], b <- [-h/2,h/2] ]
+xSolid = fromPaths [line 0 (V3 a b 0) | a <- [-w/2, w/2], b <- [-h/2,h/2]]
 
 fromPaths = foldMap (pad t . toShape . offset t 1)
 
