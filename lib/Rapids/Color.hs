@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveLift #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- | propagate face colors

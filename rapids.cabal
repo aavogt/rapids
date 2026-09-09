@@ -68,6 +68,8 @@ library
       UndecidableInstances
       ViewPatterns
       RankNTypes
+      StandaloneDeriving
+      DeriveLift
   pkgconfig-depends:
       qhull_r
   build-depends:

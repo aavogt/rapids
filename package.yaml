@@ -47,6 +47,8 @@ default-extensions:
   - UndecidableInstances
   - ViewPatterns
   - RankNTypes
+  - StandaloneDeriving
+  - DeriveLift
 
 library:
   source-dirs:
