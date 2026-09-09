@@ -4,8 +4,8 @@ main = do
   let actual = volume ySolid
       expected = volume ySolid_
   print (actual, expected)
-  if actual <= 0 || expected <= 0 || abs (actual - expected) > 0.1 * max actual expected
-    then error "single-edge and two-edge offsets differ by more than 10%"
+  if actual <= 0 || expected <= 0 || abs (actual - expected) > 0.01 * max actual expected
+    then error "single-edge round-cap and two-edge offsets differ by more than 1%"
     else pure ()
   writeSTEP "volume_offset.step" ySolid
 

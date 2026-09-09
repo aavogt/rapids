@@ -28,6 +28,8 @@ Cpp.include "<BRepOffsetAPI_MakeOffset.hxx>"
 Cpp.include "<GeomAbs_JoinType.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
 Cpp.include "<TopExp_Explorer.hxx>"
+Cpp.include "<GC_MakeArcOfCircle.hxx>"
+Cpp.include "<cmath>"
 Cpp.include "<BRepAdaptor_Curve.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeEdge.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeWire.hxx>"
@@ -70,23 +72,34 @@ offsetPath amount join input =
           return nullptr;
         }
 
+        const double radius = std::fabs($(double amount));
+        if (radius <= 1e-12) {
+          return new TopoDS_Wire(*spine);
+        }
+
+        gp_Vec travel = tangent;
+        travel.Normalize();
         gp_Vec planeNormal(0.0, 0.0, 1.0);
         if (tangent.Crossed(planeNormal).SquareMagnitude() <= 1e-24) {
           planeNormal = gp_Vec(1.0, 0.0, 0.0);
         }
         gp_Vec side = planeNormal.Crossed(tangent);
         side.Normalize();
-        side *= $(double amount);
+        side *= radius;
 
         gp_Pnt startLeft = start.Translated(side);
         gp_Pnt endLeft = end.Translated(side);
         gp_Pnt startRight = start.Translated(-side);
         gp_Pnt endRight = end.Translated(-side);
+        gp_Pnt endCapMid = end.Translated(travel * radius);
+        gp_Pnt startCapMid = start.Translated(-travel * radius);
         BRepBuilderAPI_MakeWire wire;
         wire.Add(BRepBuilderAPI_MakeEdge(startLeft, endLeft).Edge());
-        wire.Add(BRepBuilderAPI_MakeEdge(endLeft, endRight).Edge());
+        wire.Add(BRepBuilderAPI_MakeEdge(
+            GC_MakeArcOfCircle(endLeft, endCapMid, endRight).Value()).Edge());
         wire.Add(BRepBuilderAPI_MakeEdge(endRight, startRight).Edge());
-        wire.Add(BRepBuilderAPI_MakeEdge(startRight, startLeft).Edge());
+        wire.Add(BRepBuilderAPI_MakeEdge(
+            GC_MakeArcOfCircle(startRight, startCapMid, startLeft).Value()).Edge());
         if (!wire.IsDone()) {
           return nullptr;
         }
