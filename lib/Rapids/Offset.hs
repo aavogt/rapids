@@ -1,26 +1,36 @@
 {-# LANGUAGE QuasiQuotes #-}
+
 {- HLINT ignore "Eta reduce" -}
 
 module Rapids.Offset where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Acquire (mkAcquire)
+import Data.Coerce (coerce)
 import Data.Either (fromRight)
-import Foreign
-import Foreign.C.Types (CDouble, CBool)
+import Foreign (Ptr)
+import Foreign.C (CDouble (..), CInt (..))
+import Foreign.C.Types (CBool, CDouble)
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
-import OpenCascade.TopoDS (Shape)
+import qualified OpenCascade.TopoDS as TopoDS
 import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
-import Waterfall (Solid)
-import Waterfall.Error (WaterfallError)
+import Rapids.Path.Offset (offsetPath, offsetPath2D, offsetShape)
+import Rapids.Reexports
+  ( Path,
+    Path2D,
+    Shape,
+    Solid,
+    emptySolid,
+    nearZero,
+    (&),
+  )
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
-import Waterfall.Internal.NearZero (nearZero)
 import Waterfall.Internal.Solid
   ( acquireSolid,
     emptySolid,
-    solidFromAcquireWithCatch
+    solidFromAcquireWithCatch,
   )
 
 C.context occtContext
@@ -39,110 +49,97 @@ Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 
 -- | Offset every solid component and retain a compound when there are many.
-offsetShape :: Double -> Double -> CBool -> Solid -> IO (Ptr Shape)
-offsetShape tolerance value arcIntersection solid =
-  [Cpp.block| TopoDS_Shape* {
+offsetSolidWithTolerance :: CDouble -> CDouble -> CInt -> Solid -> Solid
+offsetSolidWithTolerance tolerance value join solid
+  | coerce nearZero value = solid
+  | otherwise =
+      [Cpp.block| TopoDS_Shape* {
     TopoDS_Shape* result = new TopoDS_Shape();
     TopoDS_Shape* input = $solid:solid;
     if (input == nullptr || input->IsNull()) {
       return result;
     }
 
-    try {
-      TopoDS_Compound compound;
-      BRep_Builder compoundBuilder;
-      compoundBuilder.MakeCompound(compound);
-      TopoDS_Shape first;
-      Standard_Integer count = 0;
+    TopoDS_Compound compound;
+    BRep_Builder compoundBuilder;
+    compoundBuilder.MakeCompound(compound);
+    TopoDS_Shape first;
+    Standard_Integer count = 0;
 
-      for (TopExp_Explorer solids(*input, TopAbs_SOLID);
-           solids.More(); solids.Next()) {
-        BRepOffsetAPI_MakeOffsetShape offset;
-        offset.PerformByJoin(
-          solids.Current(),
-          $(double value'),
-          $(double tolerance'),
-          BRepOffset_Skin,
-          Standard_False,
-          Standard_False,
-          $(bool arcIntersection) ? GeomAbs_Arc : GeomAbs_Intersection,
-          Standard_False);
+    for (TopExp_Explorer solids(*input, TopAbs_SOLID);
+          solids.More(); solids.Next()) {
+      BRepOffsetAPI_MakeOffsetShape offset;
+      offset.PerformByJoin(
+        solids.Current(),
+        $(double value),
+        $(double tolerance),
+        BRepOffset_Skin,
+        Standard_False,
+        Standard_False,
+        static_cast<GeomAbs_JoinType>($(int join)),
+        Standard_False);
 
-        TopoDS_Shape offsetShape = offset.Shape();
-        BRepBuilderAPI_MakeSolid solidBuilder;
-        Standard_Integer shellCount = 0;
-        for (TopExp_Explorer shells(offsetShape, TopAbs_SHELL);
-             shells.More(); shells.Next()) {
-          solidBuilder.Add(TopoDS::Shell(shells.Current()));
-          ++shellCount;
-        }
-        if (shellCount == 0 || !solidBuilder.IsDone()) {
-          return result;
-        }
-
-        TopoDS_Shape component = solidBuilder.Solid();
-        if (count == 0) {
-          first = component;
-        }
-        compoundBuilder.Add(compound, component);
-        ++count;
+      TopoDS_Shape offsetShape = offset.Shape();
+      BRepBuilderAPI_MakeSolid solidBuilder;
+      Standard_Integer shellCount = 0;
+      for (TopExp_Explorer shells(offsetShape, TopAbs_SHELL);
+            shells.More(); shells.Next()) {
+        solidBuilder.Add(TopoDS::Shell(shells.Current()));
+        ++shellCount;
       }
-
-      if (count == 0) {
+      if (shellCount == 0 || !solidBuilder.IsDone()) {
         return result;
       }
-      if (count == 1) {
-        *result = first;
-      } else {
-        *result = compound;
+
+      TopoDS_Shape component = solidBuilder.Solid();
+      if (count == 0) {
+        first = component;
       }
-    } catch (Standard_Failure const&) {
-      return result;
-    } catch (...) {
+      compoundBuilder.Add(compound, component);
+      ++count;
+    }
+
+    if (count == 0) {
       return result;
     }
-    return result;
+    if (count == 1) {
+      *result = first;
+    } else {
+      *result = compound;
+    }
+  return result;
   }|]
-  where
-    value' :: CDouble
-    value' = realToFrac value
-    tolerance' :: CDouble
-    tolerance' = realToFrac tolerance
+        & ownSolid
 
-offsetWithTolerance :: Double -> Double -> CBool -> Solid -> Solid
-offsetWithTolerance tolerance value arcIntersection solid
-  | nearZero value = solid
-  | otherwise =
-      fromRight emptySolid $
-        solidFromAcquireWithCatch $
-          mkAcquire (offsetShape tolerance value arcIntersection solid) deleteShape
-
+offsetSolid :: CDouble -> CInt -> Solid -> Solid
+offsetSolid = offsetSolidWithTolerance 1e-6
 
 class Offset a where
   -- |
+  -- > offset amount <join> solid|shape|path|path2d
   --
   -- > offset amount solid   -- round corners
   -- > offset amount 1 solid -- round corners
   -- > offset amount 0 solid -- sharp corners
   offset :: Double -> a
 
--- | rounded corners by default
-instance {-# INCOHERENT #-} (a ~ Solid, a ~ a') => Offset (a -> a') where
-  offset amount solid = offsetWithTolerance 1e-6 amount 1 solid
+-- | sharp corners by default
+instance {-# INCOHERENT #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
+  offset amount solid = offsetJoin (coerce amount) 1 solid
 
 -- |
 --
 -- > offset amount 0 -- sharp
 -- > offset amount 1 -- rounded
-instance (b ~ CBool, a ~ Solid, a ~ a') => Offset (b -> a -> a') where
-  offset = offsetWithTolerance 1e-6
+instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where offset amount = offsetJoin (coerce amount)
 
-tryOffsetWithTolerance :: Double -> Double -> CBool -> Solid -> Either WaterfallError Solid
-tryOffsetWithTolerance tolerance value arcIntersection solid
-  | nearZero value = Right solid
-  | otherwise =
-      solidFromAcquireWithCatch $
-        mkAcquire (offsetShape tolerance value arcIntersection solid) deleteShape
+-- | used to define 'offset'
+class OffsetJoin a where offsetJoin :: CDouble -> CInt -> a -> a
 
-tryOffset :: Double -> CBool -> Solid -> Either WaterfallError Solid
-tryOffset = tryOffsetWithTolerance 1e-6
+instance OffsetJoin Solid where offsetJoin = offsetSolid
+
+instance OffsetJoin Shape where offsetJoin = offsetShape
+
+instance OffsetJoin Path where offsetJoin = offsetPath
+
+instance OffsetJoin Path2D where offsetJoin = offsetPath2D

@@ -11,9 +11,14 @@ import Waterfall.TwoD.Internal.Shape
 import Waterfall.Internal.Path.Common (RawPath(ComplexRawPath))
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Data.Acquire (mkAcquire)
+import Waterfall.Internal.Solid (solidFromAcquireWithCatch)
+import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
+import Data.Either (fromRight)
 
 C.context occtContext
 Cpp.include "<gp_Pnt.hxx>"
+Cpp.include "<TopoDS_Wire.hxx>"
+Cpp.include "<TopoDS_Shape.hxx>"
 
 -- these don't really belong here
 -- they are referenced in InlineOCCT.Context
@@ -54,3 +59,5 @@ ownPath io = Path $ ComplexRawPath $ unsafeFromAcquire $ mkAcquire io c_deleteTo
 ownShape :: IO (Ptr TopoDS.Shape) -> Shape
 ownShape io = Shape $ unsafeFromAcquire $ mkAcquire io c_deleteTopoDSShape
 
+ownSolid :: IO (Ptr TopoDS.Shape) -> Solid
+ownSolid io = fromRight emptySolid $ solidFromAcquireWithCatch $ mkAcquire io deleteShape

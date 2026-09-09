@@ -5,12 +5,12 @@ import Rapids.Scale
 import Rapids.Translate
 import Rapids.Rotate
 import Rapids.Num
-import Rapids.Path.Offset
 import Rapids.ToShape
 import Rapids.Pad
 import Rapids.Path
 import Rapids.Color
 import Rapids.ToPath
+import Rapids.Offset
 
 axisTriad :: Solid
 axisTriad =
@@ -38,7 +38,7 @@ zSolid = fromPaths [ toPath $ rotate2D angle $ execPathState0 do
 
 xSolid = fromPaths [ line 0 (V3 a b 0) <> line (V3 a b 0) (V3 (a+1e-3) b 0) | a <- [-w/2, w/2], b <- [-h/2,h/2] ]
 
-fromPaths = foldMap (pad t . toShape . offsetPath 1 t)
+fromPaths = foldMap (pad t . toShape . offset t 1)
 
 w = 1
 h = 2

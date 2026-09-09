@@ -37,13 +37,13 @@ Cpp.include "<TopoDS_Wire.hxx>"
 
 -- | Offset a planar @TopoDS_Wire@, preserving its plane.
 offsetPath ::
-  -- | 0 arc; 1 tangent; 2 intersection
-  CInt ->
   -- | amount
   CDouble ->
+  -- | 0 arc; 1 tangent; 2 intersection
+  CInt ->
   Path ->
   Path
-offsetPath join' amount input =
+offsetPath amount join input =
   [Cpp.block| TopoDS_Wire* {
     TopoDS_Wire* spine = $path:input;
     if (spine == nullptr || spine->IsNull()) {
@@ -53,7 +53,7 @@ offsetPath join' amount input =
     try {
       BRepOffsetAPI_MakeOffset offset(
           *spine,
-          static_cast<GeomAbs_JoinType>($(int join')),
+          static_cast<GeomAbs_JoinType>($(int join)),
           Standard_False);
       offset.Perform($(double amount));
       if (!offset.IsDone()) {
@@ -72,8 +72,8 @@ offsetPath join' amount input =
     & ownPath
 
 -- | Offset a planar @TopoDS_Face@
-offsetShape :: CInt -> CDouble -> Shape -> Shape
-offsetShape join' amount input =
+offsetShape :: CDouble -> CInt -> Shape -> Shape
+offsetShape amount join input =
   ownShape
     [Cpp.block| TopoDS_Shape* {
       TopoDS_Shape* shape = $shape:input;
@@ -84,7 +84,7 @@ offsetShape join' amount input =
       try {
         BRepOffsetAPI_MakeOffset offset(
             TopoDS::Face(*shape),
-            static_cast<GeomAbs_JoinType>($(int join')),
+            static_cast<GeomAbs_JoinType>($(int join)),
             Standard_False);
         offset.Perform($(double amount));
         if (!offset.IsDone()) {
@@ -98,17 +98,17 @@ offsetShape join' amount input =
     } |]
 
 -- | @offsetPath join amount path2d@
-offsetPath2D :: CInt -> CDouble -> Path2D -> Path2D
+offsetPath2D :: CDouble -> CInt -> Path2D -> Path2D
 offsetPath2D = coerce offsetPath
 
 -- | @offsetPathArc amount path = offsetPath 0 amount path@
 offsetPathArc :: CDouble -> Path -> Path
-offsetPathArc = offsetPath 0
+offsetPathArc = flip offsetPath 0
 
 -- | @offsetPath2DArc amount path2d = offsetPath2D 0 amount path2d@
 offsetPath2DArc :: CDouble -> Path2D -> Path2D
-offsetPath2DArc = offsetPath2D 0
+offsetPath2DArc = flip offsetPath2D 0
 
 -- | @offsetShapeArc amount shape = offsetShape 0 amount shape@
 offsetShapeArc :: CDouble -> Shape -> Shape
-offsetShapeArc = offsetShape 0
+offsetShapeArc = flip offsetShape 0

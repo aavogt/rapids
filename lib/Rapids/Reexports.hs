@@ -1,11 +1,14 @@
 module Rapids.Reexports (
     module Linear,
     module Control.Lens,
-    module Waterfall, ) where
+    module Waterfall,
+    module Waterfall.Internal.NearZero
+    ) where
 
 
-import Linear hiding (rotate, scaled)
+import Linear hiding (rotate, scaled, nearZero)
 import Control.Lens hiding (prism)
+import Waterfall.Internal.NearZero (nearZero)
 import Waterfall hiding
   ( appendPath2D,
     appendSegment,
