@@ -2,9 +2,7 @@ module Rapids.Path.CornerOp where
 
 import Control.Lens
 import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Trans.State
-import Data.Acquire
 import Data.Maybe
 import Foreign
 import Foreign.C.Types
@@ -12,13 +10,9 @@ import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import Linear
-import OpenCascade.TopoDS.Types
-import Waterfall.Internal.Path.Common
 import Waterfall.Path (Path)
 import qualified Waterfall.Path as W
 import qualified Waterfall.Internal.Path as InternalPath
-import OpenCascade.TopoDS.Internal.Destructors
-import Waterfall.Internal.Finalizers
 
 C.context occtContext
 Cpp.include "<ChFi2d_ChamferAPI.hxx>"
