@@ -3,9 +3,7 @@
 module Rapids.Path.Project where
 
 import Control.Lens
-import Control.Monad.IO.Class
 import Data.Acquire (Acquire, mkAcquire)
-import Foreign
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
@@ -13,10 +11,10 @@ import Language.Haskell.TH (unsafe)
 import Linear
 import qualified OpenCascade.TopoDS.Wire as TopoDS
 import Waterfall
-import Waterfall.Internal.Finalizers
 import Waterfall.Internal.Path
 import Waterfall.Internal.Path.Common
 import Waterfall.TwoD.Internal.Path2D
+import Data.Coerce (coerce)
 
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
@@ -43,18 +41,14 @@ Cpp.include "<Standard_Failure.hxx>"
 --
 -- make a 3D path 2D by removing z components used by 'toShape'
 projectPath :: Path -> Path2D
-projectPath (Path (ComplexRawPath w)) = Path2D (ComplexRawPath (unsafeFromAcquire (projectPathRaw (castPtr w))))
 projectPath (Path (SinglePointRawPath v)) = Path2D (SinglePointRawPath (v & _z .~ 0))
 projectPath (Path EmptyRawPath) = Path2D EmptyRawPath
+projectPath p = coerce (projectPathRaw p)
 
-projectPathRaw :: Ptr () -> Acquire (Ptr TopoDS.Wire)
-projectPathRaw p =
-  mkAcquire
-    ( liftIO $ do
-        castPtr
-          <$> [Cpp.block| void * {
-            try {
-              TopoDS_Wire* inputWire = (TopoDS_Wire*)$(void* p);
+projectPathRaw :: Path -> Path
+projectPathRaw p = ownPath do
+          [Cpp.block| TopoDS_Wire* {
+              TopoDS_Wire* inputWire = $path:p;
               if (inputWire == NULL) {
                 return NULL;
               }
@@ -97,9 +91,4 @@ projectPathRaw p =
               }
 
               return new TopoDS_Wire(wireBuilder.Wire());
-            } catch (Standard_Failure const&) {
-              return NULL;
-            }
           } |]
-    )
-    (\(castPtr -> q) -> [Cpp.block| void { delete  (TopoDS_Wire*)$(void* q); } |])
