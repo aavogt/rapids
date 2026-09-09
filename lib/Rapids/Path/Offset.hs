@@ -20,6 +20,7 @@ import Waterfall.Internal.Path (Path (..))
 import Waterfall.Internal.Path.Common (RawPath (..))
 import Waterfall.TwoD.Internal.Path2D (Path2D (..))
 import Waterfall.TwoD.Internal.Shape (Shape (..))
+import Data.Coerce (coerce)
 
 C.context occtContext
 Cpp.include "<BRepOffsetAPI_MakeOffset.hxx>"
@@ -34,51 +35,35 @@ Cpp.include "<TopoDS_Shape.hxx>"
 Cpp.include "<TopoDS_Wire.hxx>"
 
 -- | Offset a planar @TopoDS_Wire@, preserving its plane.
---
--- The returned pointer owns a new @TopoDS_Wire@ through the 'Acquire'
--- finalizer.  The input wire must remain alive while the acquire action is
--- used.
-offsetTopoDSWire :: CInt -> Double -> Ptr TopoDS.Wire -> Acquire (Ptr TopoDS.Wire)
-offsetTopoDSWire join' amount input =
-  mkAcquire
-    ( liftIO $ do
-        let amount' = realToFrac amount :: CDouble
-            input' = castPtr input :: Ptr ()
-        castPtr
-          <$> [Cpp.block| void* {
-            TopoDS_Wire* spine = (TopoDS_Wire*)$(void* input');
-            if (spine == nullptr || spine->IsNull()) {
-              return new TopoDS_Wire();
-            }
+offsetPath :: CInt -- ^ 0 arc; 1 tangent; 2 intersection
+  -> CDouble  -- ^ amount
+  -> Path -> Path
+offsetPath join' amount input = unsafeFromAcquire $ liftIO $ Path . ComplexRawPath <$>
+  [Cpp.block| TopoDS_Wire* {
+      TopoDS_Wire* spine = $path:input;
+      if (spine == nullptr || spine->IsNull()) {
+        return new TopoDS_Wire();
+      }
 
-            try {
-              BRepOffsetAPI_MakeOffset offset(
-                  *spine,
-                  static_cast<GeomAbs_JoinType>($(int join')),
-                  Standard_False);
-              offset.Perform($(double amount'));
-              if (!offset.IsDone()) {
-                return new TopoDS_Wire();
-              }
+      try {
+        BRepOffsetAPI_MakeOffset offset(
+            *spine,
+            static_cast<GeomAbs_JoinType>($(int join')),
+            Standard_False);
+        offset.Perform($(double amount));
+        if (!offset.IsDone()) {
+          return new TopoDS_Wire();
+        }
 
-              const TopoDS_Shape& result = offset.Shape();
-              if (result.IsNull() || result.ShapeType() != TopAbs_WIRE) {
-                return new TopoDS_Wire();
-              }
-              return new TopoDS_Wire(TopoDS::Wire(result));
-            } catch (Standard_Failure const&) {
-              return new TopoDS_Wire();
-            } catch (...) {
-              return new TopoDS_Wire();
-            }
-          } |]
-    )
-    ( \ptr ->
-        let ptr' = castPtr ptr :: Ptr ()
-         in [Cpp.block| void {
-          delete (TopoDS_Wire*)$(void* ptr');
-        } |]
-    )
+        const TopoDS_Shape& result = offset.Shape();
+        if (result.IsNull() || result.ShapeType() != TopAbs_WIRE) {
+          return new TopoDS_Wire();
+        }
+        return new TopoDS_Wire(TopoDS::Wire(result));
+      } catch (...) {
+        return new TopoDS_Wire();
+      }
+    } |]
 
 -- | Offset a planar @TopoDS_Face@, optionally adding more boundary wires.
 --
@@ -138,8 +123,6 @@ offsetTopoDSFace join' amount input wires =
                 return new TopoDS_Face();
               }
               return new TopoDS_Face(faceBuilder.Face());
-            } catch (Standard_Failure const&) {
-              return new TopoDS_Face();
             } catch (...) {
               return new TopoDS_Face();
             }
@@ -152,20 +135,9 @@ offsetTopoDSFace join' amount input wires =
         } |]
     )
 
--- | Offset a 'Path' in its existing plane (normally the @z = 0@ plane).
---
--- A path without a wire, such as 'EmptyRawPath' or a single point, cannot be
--- offset and is returned unchanged.
-offsetPath :: CInt -> Double -> Path -> Path
-offsetPath join amount path@(Path (ComplexRawPath wire)) =
-  Path . ComplexRawPath $ unsafeFromAcquire (offsetTopoDSWire join amount wire)
-offsetPath _ _ path = path
-
 -- | Offset a planar 'Path2D', preserving the @z = 0@ plane.
-offsetPath2D :: CInt -> Double -> Path2D -> Path2D
-offsetPath2D join amount (Path2D (ComplexRawPath wire)) =
-  Path2D . ComplexRawPath $ unsafeFromAcquire (offsetTopoDSWire join amount wire)
-offsetPath2D _ _ path = path
+offsetPath2D :: CInt -> CDouble -> Path2D -> Path2D
+offsetPath2D = coerce offsetPath
 
 -- | Offset a planar 'Shape' whose underlying shape is a @TopoDS_Face@.
 offsetFace :: CInt -> Double -> Shape -> Shape
@@ -183,11 +155,11 @@ performOffset amount join (Shape face) paths =
     pure (castPtr result)
 
 -- | Arc-joined planar wire offset.
-offsetPathArc :: Double -> Path -> Path
+offsetPathArc :: CDouble -> Path -> Path
 offsetPathArc = offsetPath 0
 
 -- | Arc-joined planar 2D wire offset.
-offsetPath2DArc :: Double -> Path2D -> Path2D
+offsetPath2DArc :: CDouble -> Path2D -> Path2D
 offsetPath2DArc = offsetPath2D 0
 
 -- | Arc-joined planar face offset.

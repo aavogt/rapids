@@ -80,9 +80,10 @@ pathAntiQuoter =
     }
 
 pathWire :: Path -> Acquire (Ptr Wire)
-pathWire path = toAcquire $ case path of
-  Path (ComplexRawPath wire) -> wire
-  _ -> nullPtr
+pathWire path = mkAcquire (return $ case path of
+    Path (ComplexRawPath wire) -> wire
+    _ -> nullPtr)
+  (\(castPtr -> ptr) -> [Cpp.block| void { delete (TopoDS_Wire*)$(void* ptr); } |])
 
 dirAntiQuoter :: AntiQuoter HaskellIdentifier
 dirAntiQuoter =
