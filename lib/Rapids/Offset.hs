@@ -125,7 +125,7 @@ class Offset a where
 
 -- | sharp corners by default
 instance {-# INCOHERENT #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
-  offset amount solid = offsetJoin (coerce amount) 1 solid
+  offset amount solid = offsetJoin (coerce amount) 0 solid
 
 -- |
 --
