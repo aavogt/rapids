@@ -23,3 +23,7 @@ executables:
     main: infer.hs
     dependencies:
       - test
+  path_offset:
+    main: path_offset.hs
+    dependencies:
+      - test
