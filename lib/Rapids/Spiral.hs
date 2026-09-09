@@ -10,6 +10,7 @@ import Numeric.AD.Rank1.Tower (Tower)
 import Rapids.Revolution (Revolution (..))
 import Rapids.ToPath
 import Waterfall
+import Rapids.ToShape
 
 class SpiralPath a where
   unitSpiralPath :: a
@@ -42,15 +43,15 @@ class UnitSpiral a where
   -- | r=1, pitch=1
   --
   -- > scale r r pitch $ unitSpiral turns taperSlope $ rectangle w h
-  unitSpiral :: a
+  unitSpiral :: Double -> a
 
-instance {-# INCOHERENT #-} (turns ~ Double, taper ~ Double, ToPath profile, Solid ~ solid) => UnitSpiral (turns -> taper -> profile -> solid) where
-  unitSpiral turns taperSlope profile = unitSpiral1 turns taperSlope (toPath profile)
+instance {-# INCOHERENT #-} (taper ~ Double, ToShape profile, Solid ~ solid) => UnitSpiral (taper -> profile -> solid) where
+  unitSpiral turns taperSlope profile = foldMap (unitSpiral1 turns taperSlope) $ shapePaths $ toShape profile
 
-unitSpiral1 :: Double -> Double -> Path -> Solid
+unitSpiral1 :: Double -> Double -> Path2D -> Solid
 unitSpiral1 turns taperSlope sh =
     loft
-      [ spiralFrame taperSlope th sh
+      [ spiralFrame taperSlope th (toPath sh)
         | let fractionalTurn
                 | nearZero (2 * turns - fromIntegral (floorDouble (2 * turns))) = []
                 | otherwise = [2 * turns - fromIntegral (floorDouble (2 * turns))],
@@ -59,7 +60,7 @@ unitSpiral1 turns taperSlope sh =
           let th = pi * n / nperhalfturn
       ]
 
-instance {-# OVERLAPPABLE #-} UnitSpiral (turns -> Double -> profile -> solid) => UnitSpiral (turns -> profile -> solid) where
+instance {-# OVERLAPPABLE #-} UnitSpiral (Double -> profile -> solid) => UnitSpiral (profile -> solid) where
   unitSpiral turns sh = unitSpiral turns (0 :: Double) sh
 
 spiralFrame :: (Transformable t) => Double -> Double -> t -> t

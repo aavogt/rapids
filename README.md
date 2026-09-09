@@ -4,11 +4,11 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
 
   - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L456) `$red :: Solid -> Solid` also add source locations and propagate through most 3d operations to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker)
   - `pad` generalizes Waterfall.prism turning any `shape` into a `Solid` with optional taperFrac :
-    - `pad <x> <y> z <taperFrac> shape`
+    - `pad <x y> z <taperFrac> shape`
     - `pad v3 <taperFrac>`
   - `sweep path shape`
-  - `revolution <radians> path`
-  - `unitSpiral turns <taperSlope> path`
+  - `revolution <radians> shape`
+  - `unitSpiral turns <taperSlope> shape`
   - meshed convex hull of vertices contained within `Solid`, `[V3 Double]` `[Path]` or `Path`. In other words:
     - `hull :: Solid       -> Solid`
     - `hull :: [V3 Double] -> Solid`
