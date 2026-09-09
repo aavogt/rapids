@@ -20,6 +20,7 @@ library
       Rapids.AABB.Lens
       Rapids.BoolOp
       Rapids.Color
+      Rapids.Color.AxisTriad
       Rapids.ConvexHull
       Rapids.IniVal
       Rapids.Mirror
