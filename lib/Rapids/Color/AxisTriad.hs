@@ -12,6 +12,7 @@ import Rapids.Color
 import Rapids.ToPath
 import Rapids.Offset
 
+-- | rgb xyz axes 4 units long
 axisTriad :: Solid
 axisTriad =
     $blue (rotate ex (pi / 2) (line ySolid)) +
