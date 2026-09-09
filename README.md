@@ -6,6 +6,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
   - `pad` generalizes Waterfall.prism turning any `shape` into a `Solid` with optional taperFrac :
     - `pad <x y> z <taperFrac> shape`
     - `pad v3 <taperFrac>`
+  - `offset amount <join> solid|shape|path|path2d` with join 0,1,2 for [Arc Tangent or Intersection respectively](https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html)
   - `sweep path shape`
   - `revolution <radians> shape`
   - `unitSpiral turns <taperSlope> shape`
