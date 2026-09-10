@@ -53,3 +53,5 @@ default-extensions:
 library:
   source-dirs:
     - lib
+  extra-libraries:
+    - TKBool

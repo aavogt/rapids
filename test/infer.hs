@@ -3,7 +3,7 @@ import Rapids
 main = return ()
 
 sectionPaths :: Solid -> [Path]
-sectionPaths = map toPath . section
+sectionPaths = map toPath . shapePaths . section
 
 emptyPaths2D :: Shape -> [Path2D]
 emptyPaths2D _ = []

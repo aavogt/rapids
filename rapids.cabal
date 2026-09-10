@@ -70,6 +70,8 @@ library
       RankNTypes
       StandaloneDeriving
       DeriveLift
+  extra-libraries:
+      TKBool
   pkgconfig-depends:
       qhull_r
   build-depends:

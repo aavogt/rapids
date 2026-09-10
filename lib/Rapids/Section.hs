@@ -19,8 +19,6 @@ import Waterfall.Internal.Path.Common
 import Control.Monad.IO.Class
 import Language.Haskell.TH (unsafe)
 import System.IO.Unsafe (unsafePerformIO)
-import Rapids.Path.Project
-import Rapids.ToShape
 
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
@@ -29,6 +27,13 @@ Cpp.include "<gp_Pln.hxx>"
 Cpp.include "<gp_Vec.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 Cpp.include "<TopoDS.hxx>"
+Cpp.include "<BRepAlgo_FaceRestrictor.hxx>"
+Cpp.include "<BRep_Builder.hxx>"
+Cpp.include "<ShapeAnalysis_FreeBounds.hxx>"
+Cpp.include "<TopTools_HSequenceOfShape.hxx>"
+Cpp.include "<TopTools_ListOfShape.hxx>"
+Cpp.include "<TopTools_ListIteratorOfListOfShape.hxx>"
+Cpp.include "<TopAbs_ShapeEnum.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
 Cpp.include "<BRepGProp.hxx>"
 Cpp.include "<BRepAlgoAPI_Section.hxx>"
@@ -72,67 +77,53 @@ sectionPerimeter solid = unsafePerformIO
  }
 |]
 
--- | @paths = section s@
+-- | @shape = section s@
 --
 -- section a solid @s@ with the xy plane
--- returning all paths that intersect
+-- returning a planar shape whose inner contours are holes
 section :: Solid -> Shape
-section solid = toShape <$> unsafeFromAcquireT $
-  liftIO [Cpp.block| void* {
+section solid = ownShape [Cpp.block| TopoDS_Shape* {
     gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
     BRepAlgoAPI_Section section(* $solid:solid,planeFace);
     section.Build();
 
     if (!section.IsDone()) {
-        return NULL;
+        return new TopoDS_Shape();
     }
 
-    return new TopoDS_Shape(section.Shape());
+    TopTools_ListOfShape edges;
+    TopExp_Explorer edgeExplorer(section.Shape(), TopAbs_EDGE);
+    for (; edgeExplorer.More(); edgeExplorer.Next()) {
+        edges.Append(edgeExplorer.Current());
+    }
+
+    Handle(TopTools_HSequenceOfShape) edgeSequence = new TopTools_HSequenceOfShape;
+    for (TopTools_ListIteratorOfListOfShape it(edges); it.More(); it.Next()) {
+        edgeSequence->Append(it.Value());
+    }
+
+    Handle(TopTools_HSequenceOfShape) wires = new TopTools_HSequenceOfShape;
+    ShapeAnalysis_FreeBounds::ConnectEdgesToWires(
+        edgeSequence, 1e-7, Standard_False, wires);
+
+    BRepAlgo_FaceRestrictor restrictor;
+    restrictor.Init(planeFace, Standard_True, Standard_True);
+    for (Standard_Integer i = 1; i <= wires->Length(); ++i) {
+        TopoDS_Wire wire = TopoDS::Wire(wires->Value(i));
+        restrictor.Add(wire);
+    }
+    restrictor.Perform();
+
+    TopoDS_Compound result;
+    BRep_Builder resultBuilder;
+    resultBuilder.MakeCompound(result);
+    while (restrictor.More()) {
+        resultBuilder.Add(result, restrictor.Current());
+        restrictor.Next();
+    }
+    return new TopoDS_Shape(result);
   } |]
-    >>= \raw ->
-      if raw == nullPtr then return [] else recombine 1e-7 <$> allEdgesAsPaths raw
-
--- | Waterfall.Internal.Edges.'allWires' doesn't find anything, allEdges finds the edges without connectivity,
-allEdgesAsPaths :: Ptr () -> Acquire [Path]
-allEdgesAsPaths raw = mapM (fmap (Path . ComplexRawPath) . edgeToWire) =<< allEdges (castPtr raw)
-
--- | @ps2 = recombine tol ps@ combines paths that share endpoints. Paths will be reversed if two starts are the same.
--- tol applies to the Linear.'distance'.
---
---
--- this one will be slow with many edges. n^2 ish if the edges are randomly ordered
--- we could probably sort by Linear.angle around a mean(?) after projecting into the sectioning plane
---
--- alternatives
--- bucket grids intmap^3 or array (lookup adjacent buckets if we're close to the edge)
--- kd tree
--- plane sweep
-recombine :: Double -> [Path] -> [Path]
-recombine tol ps = map fst $ foldl (go same) [] (mapMaybe (\p -> (p,) <$> pathEndpoints p) ps)
-  where
-    same x y = distance x y <= tol
-
-go :: (b -> b -> Bool) -> [(Path, (b, b))] -> (Path, (b, b)) -> [(Path, (b, b))]
-go same accum pft@(p, (p1, p2)) =
-  fromMaybe (pft : accum) $ listToMaybe $ mapMaybe ($ accum) [tryL, tryR, revL, revR]
-  where
-    tryL = tryp (same p2 . fst) (p <>) ((p1,) . snd)
-    tryR = tryp (same p1 . snd) (<> p) ((,p2) . fst)
-    revL = tryp (same b2 . fst) (b <>) ((b1,) . snd)
-    revR = tryp (same b1 . snd) (<> b) ((,b2) . fst)
-    b = reversePath p
-    b1 = p2
-    b2 = p1
-
-tryp :: ((s, t) -> Bool) -> (a -> a) -> ((s, t) -> (s, t)) -> [(a, (s, t))] -> Maybe [(a, (s, t))]
-tryp g f h = setFirst (g . snd) (\(q, q1q2) -> let r = f q in (r, h q1q2))
-
-setFirst :: (a -> Bool) -> (a -> a) -> [a] -> Maybe [a]
-setFirst p f (x : xs)
-  | p x = Just (f x : xs)
-  | otherwise = (x :) <$> setFirst p f xs
-setFirst _ _ [] = Nothing
 
 testNested :: IO Bool
 testNested = do
