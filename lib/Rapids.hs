@@ -19,11 +19,12 @@ module Rapids
 
     -- * create 3D
     module Rapids.ConvexHull,
-    module Rapids.Pad,
+    pad, sweep,
+    sweepRuled,
     loft2,
-    axisTriad,
 
     -- ** predefined solids
+    axisTriad,
     module Waterfall.Solids,
     fustrum,
 
@@ -90,6 +91,7 @@ import Rapids.Spiral
 import Rapids.Statistics
 import Rapids.ToPath
 import Rapids.ToShape
+import Rapids.Sweep
 import Rapids.Translate
 import System.Directory
 import System.FilePath

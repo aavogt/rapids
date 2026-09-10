@@ -31,3 +31,7 @@ executables:
     main: section.hs
     dependencies:
       - test
+  sweep:
+    main: sweep.hs
+    dependencies:
+      - test

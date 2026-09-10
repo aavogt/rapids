@@ -38,6 +38,7 @@ library
       Rapids.Section
       Rapids.Spiral
       Rapids.Statistics
+      Rapids.Sweep
       Rapids.ToPath
       Rapids.ToShape
       Rapids.Translate
