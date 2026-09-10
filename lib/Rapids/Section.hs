@@ -20,6 +20,7 @@ import Control.Monad.IO.Class
 import Language.Haskell.TH (unsafe)
 import System.IO.Unsafe (unsafePerformIO)
 import Rapids.Path.Project
+import Rapids.ToShape
 
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
@@ -75,8 +76,8 @@ sectionPerimeter solid = unsafePerformIO
 --
 -- section a solid @s@ with the xy plane
 -- returning all paths that intersect
-section :: Solid -> [Path2D]
-section solid = fmap projectPath . unsafeFromAcquireT $
+section :: Solid -> Shape
+section solid = toShape <$> unsafeFromAcquireT $
   liftIO [Cpp.block| void* {
     gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
@@ -138,7 +139,7 @@ testNested = do
   let [a, b, c, d, e] = unitSphere : [uScale n unitSphere | n <- [2, 3, 4, 5]]
       abcde = e -- unions [ difference e d,  difference c b, a ]
   let sec = section abcde
-  print (map pathEndpoints sec)
+  print (map pathEndpoints (shapePaths sec))
   return True
 
 testPerimetersEqual :: IO Bool
@@ -159,7 +160,7 @@ oneCase base0 tol = do
   let secPaths = section base
       per1 = sectionPerimeter base
 
-  let per2 = sum (map Waterfall.pathLength2D secPaths)
+  let per2 = sum (map Waterfall.pathLength (shapePaths secPaths))
 
   let ok = approx tol (realToFrac per1) per2
   unless ok $ do

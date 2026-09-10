@@ -27,3 +27,7 @@ executables:
     main: path_offset.hs
     dependencies:
       - test
+  section:
+    main: section.hs
+    dependencies:
+      - test
