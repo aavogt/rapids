@@ -19,8 +19,8 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
   - transformations are varargs. Depending on types, 1 to 4 arguments specify a transformation, and multiple transformations can be done with one function. So `rotate ex x . rotate ey y` can be `rotate ex x ey y`.
     - `translate` `rotate` `rotateDeg` `scale` `mirror`  return the changed solid
     - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  also union the original (ie. `mirrored ... s = s + mirror ... s`)
-    - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce `Iso' Solid Solid`
-    - example expressions of type `Solid -> Solid`, where I each group of arguments (transformation) on a single line:
+    - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce a type changing iso `Transformable s => Iso s b s b`
+    - example expressions of type `Transformable a => a -> a` usually `Solid -> Solid`, where I each group of arguments (transformation) on a single line:
 ```
         translate
             x y z
