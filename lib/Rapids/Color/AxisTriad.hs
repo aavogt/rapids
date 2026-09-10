@@ -15,9 +15,9 @@ import Rapids.Offset
 -- | rgb xyz axes 4 units long
 axisTriad :: Solid
 axisTriad =
-    $blue (rotate ex (pi / 2) (line ySolid)) +
-      $green (rotate ey (pi / 2) (line zSolid)) +
-       $red (line xSolid)
+    $blue (rotate ex (- pi / 2) (line ySolid)) +
+      $red (rotate ey (pi / 2) (line xSolid)) +
+       $green (line zSolid)
   where
     line label =
       translate ez 2 (scale 0.1 4 centeredCylinder)
