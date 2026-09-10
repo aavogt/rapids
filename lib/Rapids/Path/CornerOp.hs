@@ -13,6 +13,7 @@ import Linear
 import Waterfall.Path (Path)
 import qualified Waterfall.Path as W
 import qualified Waterfall.Internal.Path as InternalPath
+import Data.Coerce
 
 C.context occtContext
 Cpp.include "<ChFi2d_ChamferAPI.hxx>"
@@ -34,11 +35,11 @@ class ToRadii a where
   toRadii :: a -> [CDouble]
 
 -- default
-instance {-# INCOHERENT #-} d ~ CDouble => ToRadii d where
-  toRadii = (:[])
+instance {-# INCOHERENT #-} d ~ Double => ToRadii d where
+  toRadii d = [CDouble d]
 
-instance cdouble ~ CDouble => ToRadii [cdouble] where
-  toRadii = id
+instance cdouble ~ Double => ToRadii [cdouble] where
+  toRadii = coerce
 
 -- | applyCornerOperation op requested radii
 --
