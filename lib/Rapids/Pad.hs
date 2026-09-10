@@ -49,4 +49,5 @@ instance {-# INCOHERENT #-} (Double ~ x, Double ~ z, Double ~ y, Double ~ taper,
 -- > sweep [0, V3 0 0 1e-3, V3 (-2) 0 (h / 2), V3 0 0 h] (rectangle 3 4)
 --
 -- the first segment 1e-3 fixes the bottom face orientation
+sweep :: (ToPath path, ToShape shape) => path -> shape -> Solid
 sweep path shape = W.sweep (toPath path) (toShape shape)
