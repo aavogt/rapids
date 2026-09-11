@@ -3,6 +3,7 @@
 -- | propagate face colors
 module Rapids.Color
   ( mkStepWriterColor,
+    writeSTEPColor,
 
     -- * set colors
     lightgray,
@@ -266,16 +267,20 @@ mkStepWriterColor = do
   count <- newIORef Nothing
   prefix <- takeBaseName <$> getCurrentDirectory
   return \ !solid -> do
-    doc <- newXCAFDoc
     count <- atomicModifyIORef count (\a -> (succ <$> a <|> Just 0, a))
     let out = prefix ++ maybe "" show count ++ ".step"
+    writeSTEPColor out solid
+    return out
+
+writeSTEPColor :: FilePath -> Solid -> IO ()
+writeSTEPColor out solid = do
+    doc <- newXCAFDoc
     colorMap <- readIORef faceAttrsMap
     facePayloads <- newIORef []
     withFaces_ solid $ \k ->
       for_ (Map.lookup k colorMap) \payload -> facePayloads $~ ((k, payload) :)
     addShapeWithFaceData doc solid =<< get facePayloads
     writeXCAFToSTEP out doc
-    return out
 
 -- data Operation = Common | Fuse | Cut | Cut21 | Section | Unknown
 intersections, unions, differences :: [Solid] -> Solid

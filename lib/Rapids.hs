@@ -8,6 +8,7 @@
 module Rapids
   ( -- * IO
     mkStepWriterColor,
+    writeSTEPColor,
     mkStepWriter,
     module Rapids.IniVal,
 
