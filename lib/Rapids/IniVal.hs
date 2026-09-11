@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK hide #-}
 {-# OPTIONS_GHC -Wno-missing-fields #-}
 module Rapids.IniVal (iniVal) where
 
@@ -57,11 +58,11 @@ tupE1 xs = tupE xs
 -- As a top-level declaration the result is:
 --
 -- > [iniVal| extrusion_width layer_height |]
--- ==>
--- extrusion_width = 0.4
--- layer_height = 0.2
+-- > ==>
+-- > extrusion_width = 0.4
+-- > layer_height = 0.2
 --
--- if it parses as an Int it'll be Int, so @extrusion_width = 1.0@ is probably better than @extrusion_width = 1@
+-- if it parses as an Int it'll be Int, so @extrusion_width = 1.0@ is better than @extrusion_width = 1@
 iniVal :: QuasiQuoter
 iniVal =
   QuasiQuoter

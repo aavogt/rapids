@@ -10,7 +10,8 @@ module Rapids
     mkStepWriterColor,
     writeSTEPColor,
     mkStepWriter,
-    module Rapids.IniVal,
+    -- | 'readSTEP' and other functions defined in "Waterfall.IO#g:2" are reexported
+    iniVal,
 
     -- * create 2D
     module Rapids.Path,
