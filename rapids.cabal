@@ -32,6 +32,9 @@ library
       Rapids.Path.Offset
       Rapids.Path.Project
       Rapids.Reexports
+      Rapids.Reexports.Lens
+      Rapids.Reexports.Linear
+      Rapids.Reexports.Waterfall
       Rapids.Revolution
       Rapids.Rotate
       Rapids.Scale
