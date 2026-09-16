@@ -6,6 +6,9 @@ cabal-version: 1.12
 
 name:           rapids-svg
 version:        0.0.0
+description:    combine waterfall-cad-svg with my svg-tree-antiquote parser into a svg QuasiQuoter. See ../README.md#rapids-svg
+                .
+                previous versions https://github.com/aavogt/contact_fem/blob/tube/SketchSvg/__init__.py
 build-type:     Simple
 
 library

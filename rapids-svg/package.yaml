@@ -1,5 +1,12 @@
 name: rapids-svg
 
+description: combine waterfall-cad-svg with my svg-tree-antiquote parser
+  into a svg QuasiQuoter. See ../README.md#rapids-svg
+
+  .
+
+  previous versions https://github.com/aavogt/contact_fem/blob/tube/SketchSvg/__init__.py
+
 dependencies:
   - base
   - svg-tree-antiquote

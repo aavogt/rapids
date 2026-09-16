@@ -95,6 +95,27 @@ Previously I used f3d which only displays colors with the following configuratio
 [square base flange](https://github.com/aavogt/battery-adapter/blob/main/main.hs) or as a [video](https://youtu.be/NTni_7p9clE)
 or [blog post](https://aavogt.github.io/blog/posts/2025-12-30-waterfall-cad-gcodeviewer.html)
 
+### rapids-svg
+
+![](https://aavogt.github.io/blog/images/rapids-svg.png)
+
+```haskell
+{-# LANGUAGE QuasiQuotes #-}
+import Rapids
+import Rapids.SVG
+
+main = writeSTEP "main.step" $ revolution pi [svg|
+  M 6,0
+  h 6
+  v 2*up -- comment
+  h -3
+  l -3,-up
+  z |]
+
+up = 4
+```
+
+
 ## testing
 
 cd test && make
