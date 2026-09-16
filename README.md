@@ -118,5 +118,7 @@ up = 4
 
 ## testing
 
+```
 cd test && make
 cd test && cabal run statistics
+```
