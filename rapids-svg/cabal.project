@@ -1,0 +1,5 @@
+packages: .
+source-repository-package
+  type: git
+  location: https://github.com/aavogt/svg-tree-antiquote.git
+  tag: 3e1261ba0aee78c07326b4cc8693e59d06b25556

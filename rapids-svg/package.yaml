@@ -1,0 +1,11 @@
+name: rapids-svg
+
+dependencies:
+  - base
+  - svg-tree-antiquote
+  - waterfall-cad-svg
+  - template-haskell
+
+library:
+  source-dirs:
+    - .
