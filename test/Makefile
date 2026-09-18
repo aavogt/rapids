@@ -12,6 +12,7 @@ test.cabal: package.yaml
 	
 clean:
 	rm -rf dist-newstyle ob.step out.step solid.step test.cabal \
-		sweep.step ring.step volume_offset.step ob.step
+		sweep.step ring.step volume_offset.step ob.step \
+		boxbox.step boxbox2.step
 
 .PHONY: run clean

@@ -40,7 +40,10 @@ Cpp.include "<BRepAlgoAPI_Section.hxx>"
 Cpp.include "<BRep_Tool.hxx>"
 Cpp.include "<TopExp_Explorer.hxx>"
 Cpp.include "<BRepGProp_Cinert.hxx>"
+Cpp.include "<ShapeUpgrade_UnifySameDomain.hxx>"
 
+-- Boolean operations can leave coplanar seams between adjacent faces. Normalize
+-- them before sectioning so internal seams do not become boundary wires.
 -- | @p = sectionPerimeter s@
 --
 -- section a solid @s@ with the xy plane
@@ -50,7 +53,9 @@ sectionPerimeter solid = unsafePerformIO
   [Cpp.block| double {
     gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
-    BRepAlgoAPI_Section section(* $solid:solid,planeFace);
+    ShapeUpgrade_UnifySameDomain unifier(*$solid:solid, Standard_True, Standard_True);
+    unifier.Build();
+    BRepAlgoAPI_Section section(unifier.Shape(),planeFace);
     section.Build();
 
     if (!section.IsDone()) {
@@ -85,7 +90,9 @@ section :: Solid -> Shape
 section solid = ownShape [Cpp.block| TopoDS_Shape* {
     gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
-    BRepAlgoAPI_Section section(* $solid:solid,planeFace);
+    ShapeUpgrade_UnifySameDomain unifier(*$solid:solid, Standard_True, Standard_True);
+    unifier.Build();
+    BRepAlgoAPI_Section section(unifier.Shape(),planeFace);
     section.Build();
 
     if (!section.IsDone()) {
