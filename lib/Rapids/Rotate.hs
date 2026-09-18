@@ -95,10 +95,11 @@ instance {-# OVERLAPPABLE #-} (ang ~ Double, d ~ Double, RotateGo r t) => Rotate
   rotateGo acc f v ang = rotateGo (acc . f v ang) f
 
 instance {-# OVERLAPPABLE #-} (d ~ Double, RotateGo (r -> s) t) => RotateGo (Quaternion d -> r -> s) t where
+  -- XXX rotateDeg q already has radians from acos, but f does (* pi/180)
   rotateGo acc f q = rotateGo (acc . f (q ^. _yzw) (acos (q ^. _x))) f
 
 instance {-# OVERLAPPABLE #-} (v ~ V3, ang ~ Double, RotateGo r t) => RotateGo (E v -> ang -> r) t where
-  rotateGo acc f (E e) ang = rotateGo (acc . f (0 & e .~ 1) (mod2pi ang)) f
+  rotateGo acc f (E e) ang = rotateGo (acc . f (0 & e .~ 1) ang) f
 
 class (W.Transformable t) => RotatedGo r t | r -> t where
   rotatedGo :: (t -> t) -> (t -> t) -> r
