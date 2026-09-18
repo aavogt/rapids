@@ -55,3 +55,4 @@ library:
     - lib
   extra-libraries:
     - TKBool
+    - TKHLR

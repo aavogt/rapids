@@ -39,6 +39,7 @@ library
       Rapids.Rotate
       Rapids.Scale
       Rapids.Section
+      Rapids.Silhouette
       Rapids.Spiral
       Rapids.Statistics
       Rapids.Sweep
@@ -76,6 +77,7 @@ library
       DeriveLift
   extra-libraries:
       TKBool
+      TKHLR
   pkgconfig-depends:
       qhull_r
   build-depends:

@@ -18,6 +18,7 @@ module Rapids
     module Rapids.Path.Offset,
     projectPath,
     module Rapids.Section,
+    module Rapids.Silhouette,
 
     -- * create 3D
     module Rapids.ConvexHull,
@@ -89,6 +90,7 @@ import Rapids.Revolution
 import Rapids.Rotate
 import Rapids.Scale
 import Rapids.Section
+import Rapids.Silhouette
 import Rapids.Spiral
 import Rapids.Statistics
 import Rapids.ToPath
