@@ -35,3 +35,7 @@ executables:
     main: sweep.hs
     dependencies:
       - test
+  silhouette:
+    main: silhouette.hs
+    dependencies:
+      - test
