@@ -36,7 +36,6 @@ default-extensions:
   - ForeignFunctionInterface
   - FunctionalDependencies
   - MultiParamTypeClasses
-  - OverloadedStrings
   - QuasiQuotes
   - ScopedTypeVariables
   - TemplateHaskell

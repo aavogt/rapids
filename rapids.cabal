@@ -22,6 +22,7 @@ library
       Rapids.Color
       Rapids.Color.AxisTriad
       Rapids.ConvexHull
+      Rapids.EnvDefaults
       Rapids.IniVal
       Rapids.Mirror
       Rapids.Num
@@ -62,7 +63,6 @@ library
       ForeignFunctionInterface
       FunctionalDependencies
       MultiParamTypeClasses
-      OverloadedStrings
       QuasiQuotes
       ScopedTypeVariables
       TemplateHaskell

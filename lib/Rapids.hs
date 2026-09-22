@@ -12,6 +12,9 @@ module Rapids
     mkStepWriter,
     -- | 'readSTEP' and other functions defined in "Waterfall.IO#g:2" are reexported
     iniVal,
+    -- | environment variables
+    envDefaults,
+    whenEnvParseFail,
 
     -- * create 2D
     module Rapids.Path,
@@ -77,6 +80,7 @@ import Rapids.AABB
 import Rapids.AABB.Align
 import Rapids.Color
 import Rapids.ConvexHull
+import Rapids.EnvDefaults
 import Rapids.IniVal
 import Rapids.Mirror
 import Rapids.Num
