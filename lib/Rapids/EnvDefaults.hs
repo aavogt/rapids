@@ -44,7 +44,7 @@ import System.Exit
 -- | Usage:
 --
 -- > {-# LANGUAGE TemplateHaskell #-}
--- > import EnvDefaults
+-- > import Rapids.EnvDefaults
 -- >
 -- > envDefaults [d|
 -- >  incline = 20
