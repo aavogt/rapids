@@ -44,7 +44,8 @@ import System.Exit
 -- | Usage:
 --
 -- > {-# LANGUAGE TemplateHaskell #-}
--- > import Rapids.EnvDefaults
+-- > import Rapids
+-- > import System.Exit (exitFailure)
 -- >
 -- > envDefaults [d|
 -- >  incline = 20
@@ -86,13 +87,13 @@ envDefaults decs = do
 whenEnvParseFail :: Code Q (IO () -> IO ())
 whenEnvParseFail = [|| \k -> do
   args <- getArgs
-  let envWatchList = $$(unsafeCodeCoerce [| envWatchList |])
+  let envWatchList_ = $$(unsafeCodeCoerce [| envWatchList |])
   when ("--help" `elem` args || "-h" `elem` args) do
-    putStrLn =<< renderEnvHelp envWatchList
+    putStrLn =<< renderEnvHelp envWatchList_
     exitSuccess
   when ("--verbose" `elem` args || "-v" `elem` args) do
-    putStrLn =<< renderEnvHelp envWatchList
-  errors <- traverse (hPutStrLn stderr) =<< renderParseErrors envWatchList
+    putStrLn =<< renderEnvHelp envWatchList_
+  errors <- traverse (hPutStrLn stderr) =<< renderParseErrors envWatchList_
   when (isJust errors) k
   ||]
 
@@ -152,7 +153,7 @@ watchListDecs pairs = [d|
         let parseError = [| lookupEnv ns <&> \str -> case (readMaybeStr <$> str) `asTypeOf` Just (Just $(varE n0)) of
               Just Nothing ->
                 let self = error $ "Environment variable " ++ show ns ++ " = " ++ show str ++
-                                            " cannot read as " ++ show (typeOf self)
+                                            " cannot read as " ++ show (typeOf (undefined `asTypeOf` self))
                 in self
               _ -> Nothing
               |]
