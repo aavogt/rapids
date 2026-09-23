@@ -10,11 +10,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
   - `sweep path shape`
   - `revolution <radians> shape`
   - `unitSpiral turns <taperSlope> shape`
-  - meshed convex hull of vertices contained within `Solid`, `[V3 Double]` `[Path]` or `Path`. In other words:
-    - `hull :: Solid       -> Solid`
-    - `hull :: [V3 Double] -> Solid`
-    - `hull :: [Path]      -> Solid`
-    - `hull :: Path        -> Solid`
+  - `hull points` is a meshed convex hull of vertices extracted from a `Solid`, `[V3 Double]` `[Path]` or `Path`. [Curved edges aren't supported yet](https://github.com/aavogt/rapids/issues/1).
   - Num instances for Path, Solid, and Shape so that + - * are short for [union, difference, intersection](https://hackage-content.haskell.org/package/waterfall-cad-0.6.2.1/docs/Waterfall-Booleans.html)
   - transformations are varargs. Depending on types, 1 to 4 arguments specify a transformation, and multiple transformations can be done with one function. So `rotate ex x . rotate ey y` can be `rotate ex x ey y`.
     - `translate` `rotate` `rotateDeg` `scale` `mirror`  return the changed solid
