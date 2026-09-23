@@ -20,6 +20,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `translate` `rotate` `rotateDeg` `scale` `mirror`  return the changed solid
     - `translated` `rotated` `rotatedDeg` `scaled` `mirrored`  also union the original (ie. `mirrored ... s = s + mirror ... s`)
     - `_translated` `_rotated` `_rotatedDeg` `_scaled` `_mirrored` produce a type changing iso `Transformable s => Iso s b s b`
+    - `_translated'` `_rotated'` `_rotatedDeg'` `_scaled'` `_mirrored'` produce a simple iso `Transformable s => Iso' s s`
     - example expressions of type `Transformable a => a -> a` usually `Solid -> Solid`, where I each group of arguments (transformation) on a single line:
 ```
         translate
