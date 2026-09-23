@@ -95,13 +95,13 @@ instance Semigroup MinMaxSumCount where
 instance Monoid MinMaxSumCount where
   mempty = MinMaxSumCount (1/0) (-(1/0)) 0 0
 
-distribute :: E V3 -> [Solid] -> Solid
-distribute e solids = unions (distributed e solids)
+distributed :: E V3 -> [Solid] -> Solid
+distributed e solids = unions (distribute e solids)
 
-distributed :: E V3 -> [Solid] -> [Solid]
-distributed _ [] = []
-distributed _ [s] = [s]
-distributed (E el) solids = fromJust do
+distribute :: E V3 -> [Solid] -> [Solid]
+distribute _ [] = []
+distribute _ [s] = [s]
+distribute (E el) solids = fromJust do
   aabbs <- mapM axisAlignedBoundingBox solids
   let f (view el -> l, view el -> r) = MinMaxSumCount l r (r-l) 1
   MinMaxSumCount l r occupied count <- Just (foldMap f aabbs)
