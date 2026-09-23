@@ -57,7 +57,6 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `[sa,sb,sc] = distribute ez [s1,s2,s3]`, `sa` is the lowest, `sb` is the middle, `sc` is the highest the middle elements translated along z for equal gaps/overlap. TODO or (optionally) restore the old ordering `[s1',s2',s3']`
   - `section :: Solid -> Shape` slice the solid with XY plane
   - `silhouette :: Solid|Shape|[Path2D] -> Shape` project all features into the XY plane
-  - Rapids.Path lets you use do notation to construct paths for example [loophv](https://gist.github.com/aavogt/1b59c0d02c5bcc129d743042b99839f9#file-main-hs-L39) or [do notation for paths](http://github.com/aavogt/rapids/blob/main/test/lib/Solids.hs)
   - variables in the above example expressions
     - `ex, ey, ez :: E V3` [reexported from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-V3.html#v:ex)
     - `q :: Quaternion Double` [reexported from linear](https://hackage-content.haskell.org/package/linear-1.23.3/docs/Linear-Quaternion.html#t:Quaternion)

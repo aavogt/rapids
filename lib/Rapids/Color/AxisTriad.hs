@@ -11,6 +11,8 @@ import Rapids.Path
 import Rapids.Color
 import Rapids.ToPath
 import Rapids.Offset
+import Waterfall.Path
+import Waterfall.TwoD.Path2D
 
 -- | rgb xyz axes 4 units long
 axisTriad :: Solid
@@ -31,9 +33,9 @@ ySolid = fromPaths [ ln (V3 (w/2) (h/2) 0), ln (V3 (-w/2) (h/2) 0), ln (V3 0 (-h
   where ln to = line 0 to
 
 zSolid :: Solid
-zSolid = fromPaths [ toPath $ rotate2D angle $ execPathState0 do
-  lineTo2D (V2 (w/2) (h/2)) 
-  lineTo2D (V2 (-w/2) (h/2))
+zSolid = fromPaths [ toPath $ rotate2D angle $ pathFrom 0 [
+  lineTo2D (V2 (w/2) (h/2)),
+  lineTo2D (V2 (-w/2) (h/2)) ]
   | angle <- [0, pi]
  ]
 

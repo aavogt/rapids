@@ -57,6 +57,7 @@ module Rapids
     module Rapids.Revolution,
     module Rapids.Spiral,
     module Rapids.Offset,
+    FilletChamfer(..),
 
     -- * consume 3d
     module Rapids.Statistics,
@@ -107,6 +108,9 @@ import qualified Waterfall as W
 import Waterfall.Solids hiding (Solid, centerOfMass, emptySolid, momentOfInertia, prism, volume)
 import Rapids.AABB.Lens (aabb)
 import Rapids.Color.AxisTriad
+import Data.Coerce
+import Waterfall.Internal.Path (Path(..))
+import Waterfall.TwoD.Internal.Path2D (Path2D(..))
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
@@ -129,3 +133,19 @@ fustrum d1 d2 h = loft [circle d1, translate ez h (circle d2)]
 loft2 [x, y] = loft [x, y]
 loft2 (x : y : xs) = loft [x, y] + loft2 (y : xs)
 loft2 [] = mempty
+
+class FilletChamfer a where
+  fillet :: Double -> a -> a
+  chamfer :: Double -> a -> a
+
+instance FilletChamfer Solid where
+  fillet = W.roundFillet
+  chamfer = W.chamfer
+
+instance FilletChamfer Path where
+  fillet = filletPath
+  chamfer = chamferPath
+
+instance FilletChamfer Path2D where
+  fillet = coerce filletPath
+  chamfer = coerce chamferPath

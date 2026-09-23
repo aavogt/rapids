@@ -22,6 +22,7 @@ dependencies:
   - random
   - these
   - ad
+  - spoon
 
 pkg-config-dependencies:
   - qhull_r
@@ -55,3 +56,5 @@ library:
   extra-libraries:
     - TKBool
     - TKHLR
+  repl-options:
+    -fobject-code

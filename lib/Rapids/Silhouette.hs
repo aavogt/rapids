@@ -58,6 +58,7 @@ class Silhouette a where
 
 instance Silhouette Solid where silhouette = silhouetteSolid
 instance Silhouette Shape where silhouette = silhouetteShape
+instance Silhouette [Path2D] where silhouette = silhouettePaths
 
 -- | Return the visible silhouette of a solid projected along +Z.
 silhouetteSolid :: Solid -> Shape

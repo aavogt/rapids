@@ -95,6 +95,7 @@ library
     , process
     , random
     , resourcet
+    , spoon
     , template-haskell
     , text
     , these
