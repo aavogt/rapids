@@ -15,11 +15,7 @@ import Rapids.ToShape
 class SpiralPath a where
   unitSpiralPath :: a
   -- ^
-  -- > unitSpiral :: Double -> Double -> Path
-  -- > unitSpiral :: Double           -> Path
-  --
-  -- > unitSpiral turns taperSlope :: Path
-  -- > unitSprial turns            :: Path
+  -- @unitSpiralPath turns <taperSlope>@
 
 instance {-# OVERLAPS #-} (turns ~ Double, taperSlope ~ Double, path ~ [V3 Double]) => SpiralPath (turns -> taperSlope -> path) where
   unitSpiralPath turns taperSlope =
@@ -42,12 +38,13 @@ instance (turns ~ Double, path ~ [V3 Double]) => SpiralPath (turns -> path) wher
 class UnitSpiral a where
   -- | r=1, pitch=1
   --
-  -- > scale r r pitch $ unitSpiral turns taperSlope $ rectangle w h
+  -- > scale r pitch $ unitSpiral turns taperSlope $ rectangle w h
   unitSpiral :: Double -> a
 
 instance {-# INCOHERENT #-} (taper ~ Double, ToShape profile, Solid ~ solid) => UnitSpiral (taper -> profile -> solid) where
   unitSpiral turns taperSlope profile = foldMap (unitSpiral1 turns taperSlope) $ shapePaths $ toShape profile
 
+-- TODO sweepRuled should be more efficient
 unitSpiral1 :: Double -> Double -> Path2D -> Solid
 unitSpiral1 turns taperSlope sh =
     loft
