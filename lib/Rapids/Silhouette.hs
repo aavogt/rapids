@@ -54,6 +54,7 @@ Cpp.include "<gp_Pnt.hxx>"
 
 
 class Silhouette a where
+  -- | @silhouette solid|shape\[Path2D]@ projects the argument into XY plane
   silhouette :: a -> Shape
 
 instance Silhouette Solid where silhouette = silhouetteSolid
