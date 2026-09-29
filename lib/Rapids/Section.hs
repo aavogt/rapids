@@ -3,23 +3,26 @@ module Rapids.Section where
 
 import Control.Monad
 import Data.Acquire (Acquire)
-import Data.Maybe
-import Foreign hiding (rotate)
 import Foreign.C.Types
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import Linear hiding (rotate)
 import System.Random
+import qualified Waterfall
 import Waterfall
-import Waterfall.Internal.Edges
-import Waterfall.Internal.Finalizers
-import Waterfall.Internal.Path
-import Waterfall.Internal.Path.Common
-import Control.Monad.IO.Class
+    ( Solid,
+      Shape,
+      unitSphere,
+      Transformable(..),
+      pathEndpoints,
+      translate,
+      rotate,
+      unitCube,
+      shapePaths )
 import Language.Haskell.TH (unsafe)
 import System.IO.Unsafe (unsafePerformIO)
-
+import Rapids.Color
 C.context occtContext
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
 Cpp.include "<gp_Pnt.hxx>"
@@ -87,12 +90,12 @@ sectionPerimeter solid = unsafePerformIO
 -- section a solid @s@ with the xy plane
 -- returning a planar shape whose inner contours are holes
 section :: Solid -> Shape
-section solid = ownShape [Cpp.block| TopoDS_Shape* {
+section solid = propagateSolidColors solid $ ownShape [Cpp.block| TopoDS_Shape* {
     gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
     ShapeUpgrade_UnifySameDomain unifier(*$solid:solid, Standard_True, Standard_True);
     unifier.Build();
-    BRepAlgoAPI_Section section(unifier.Shape(),planeFace);
+    BRepAlgoAPI_Section section(unifier.Shape(), planeFace);
     section.Build();
 
     if (!section.IsDone()) {

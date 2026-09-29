@@ -42,8 +42,9 @@ module Rapids.Color
     union,
     difference,
     PropagateColor (..),
+    propagateShapeColors,
+    propagateSolidColorsToShape,
 
-    -- * internals
     colorAttrsMap,
     colorKeys,
     Transform3D (..),
@@ -54,6 +55,7 @@ module Rapids.Color
 where
 
 import Control.Applicative
+import Control.Monad (unless)
 import Control.Monad.IO.Class
 import Data.Foldable
 import Data.IORef
@@ -79,6 +81,7 @@ import System.IO.Unsafe
 import Waterfall hiding (Shape, difference, intersection, intersections, union, unions)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Waterfall.Internal.Solid (Solid (Solid))
+import Waterfall.TwoD.Internal.Shape (Shape)
 
 C.context (occtContext <> Cpp.funCtx)
 Cpp.include "<TopExp_Explorer.hxx>"
@@ -119,6 +122,7 @@ type Note = These String (V3 CDouble)
 {-# NOINLINE colorAttrsMap #-}
 colorAttrsMap :: IORef (Map ColorKey Note)
 colorAttrsMap = unsafePerformIO $ newIORef Map.empty
+
 
 locationStr :: ExpQ
 locationStr = do
@@ -230,6 +234,47 @@ withFaces_ solid (curry -> kFun) =
       $fun:(void (*kFun)(void*, size_t))(shapePtr, locHash);
   }
 } |]
+withShapeFaces_ :: Shape -> (ColorKey -> IO ()) -> IO ()
+withShapeFaces_ shape (curry -> kFun) =
+  [C.block| void{
+  TopExp_Explorer explorer(*$shape:shape, TopAbs_FACE);
+  for (; explorer.More(); explorer.Next()) {
+      const TopoDS_Face& face = TopoDS::Face(explorer.Current());
+      void* shapePtr = (void*)face.TShape().get();
+      size_t locHash = face.Location().HashCode();
+      $fun:(void (*kFun)(void*, size_t))(shapePtr, locHash);
+  }
+} |]
+
+-- | Copy profile attributes onto all faces made by a sweep.
+propagateShapeColors :: Shape -> Solid -> Solid
+propagateShapeColors shape solid = unsafePerformIO do
+  sourceAttrs <- newIORef []
+  withShapeFaces_ shape $ \key -> do
+    colorMap <- readIORef colorAttrsMap
+    for_ (Map.lookup key colorMap) $ \attribute ->
+      modifyIORef' sourceAttrs (attribute :)
+  attrs <- reverse <$> readIORef sourceAttrs
+  unless (null attrs) do
+    index <- newIORef 0
+    withFaces_ solid $ \key -> do
+      i <- atomicModifyIORef' index (\n -> (n + 1, n))
+      modifyIORef' colorAttrsMap $ Map.insert key (attrs !! (i `mod` length attrs))
+  pure solid
+propagateSolidColorsToShape :: Solid -> Shape -> Shape
+propagateSolidColorsToShape source shape = unsafePerformIO do
+  sourceAttrs <- newIORef []
+  withFaces_ source $ \key -> do
+    colorMap <- readIORef colorAttrsMap
+    for_ (Map.lookup key colorMap) $ \attribute ->
+      modifyIORef' sourceAttrs (attribute :)
+  attrs <- reverse <$> readIORef sourceAttrs
+  unless (null attrs) do
+    index <- newIORef 0
+    withShapeFaces_ shape $ \key -> do
+      i <- atomicModifyIORef' index (\n -> (n + 1, n))
+      modifyIORef' colorAttrsMap $ Map.insert key (attrs !! (i `mod` length attrs))
+  pure shape
 
 withModifiedFaces_ :: Ptr () -> Solid -> (Ptr () -> CSize -> Ptr () -> CSize -> IO ()) -> IO ()
 withModifiedFaces_ history solid kFun =

@@ -1,6 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
 import Rapids
-import Rapids.Color
 import Data.Map (restrictKeys)
 import qualified Data.Set as Set
 import Data.IORef

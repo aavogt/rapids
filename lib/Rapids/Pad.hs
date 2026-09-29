@@ -22,7 +22,9 @@ class Pad a where
   -- > pad v taperFrac
 
 instance {-# OVERLAPS #-} (Double ~ double, ToShape shape, Solid ~ solid) => Pad (double -> shape -> solid) where
-  pad z = W.sweep (line 0 (V3 0 0 z)) . toShape
+  pad z shape =
+    let profile = toShape shape
+     in propagateShapeColors profile (W.sweep (line 0 (V3 0 0 z)) profile)
 
 instance {-# INCOHERENT #-} (Double ~ double, Double ~ taper, ToShape shape, Solid ~ solid) => Pad (double -> taper -> shape -> solid) where
   pad z taperFrac = pad (V3 0 0 z) taperFrac . toShape
