@@ -75,7 +75,10 @@ module Rapids.Color
     propagateSolidColors,
     OpC (..),
     leftColor,
+    Note,
+    ColorKey,
     colorAttrsMap,
+    colorAttrsMapReset,
     colorKeys,
     Transform3D (..),
     composeTransform3D,
@@ -163,6 +166,9 @@ leftColor = OpFC (\left _right -> left)
 {-# NOINLINE colorAttrsMap #-}
 colorAttrsMap :: IORef (Map ColorKey Note)
 colorAttrsMap = unsafePerformIO $ newIORef Map.empty
+
+colorAttrsMapReset :: IO ()
+colorAttrsMapReset = writeIORef colorAttrsMap Map.empty
 
 locationStr :: ExpQ
 locationStr = do
