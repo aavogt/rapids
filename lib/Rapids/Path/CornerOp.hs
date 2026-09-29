@@ -33,14 +33,6 @@ Cpp.include "<algorithm>"
 Cpp.include "<cmath>"
 Cpp.include "<vector>"
 
--- Calling a foreign export has a lot of overhead: it creates a complete new Haskell thread, for example.
-toCornerOpF :: ((CInt, Double, Double) -> (CInt, Double)) -> OpF
-toCornerOpF f
-  | Just (op, radius) <- spoon (f (undefined, undefined, undefined)) = OpConst op radius
-  | otherwise = OpF (coerce f)
-
-data OpF = OpConst CInt Double | OpF ((CInt, CDouble, CDouble) -> (CInt, CDouble))
-
 filletPath r = filletPathWithColor leftColor r
 chamferPath r = chamferPathWithColor leftColor r
 
@@ -60,6 +52,13 @@ applyOpWithColor policy f path =
         OpConst operation radius -> fromMaybe path (applyOpConst operation (CDouble radius) path)
         OpF callback -> applyOpFromFunction callback path
    in propagatePathEdgeColors policy path output
+
+toCornerOpF :: ((CInt, Double, Double) -> (CInt, Double)) -> OpF
+toCornerOpF f
+  | Just (op, radius) <- spoon (f (undefined, undefined, undefined)) = OpConst op radius
+  | otherwise = OpF (coerce f)
+
+data OpF = OpConst CInt Double | OpF ((CInt, CDouble, CDouble) -> (CInt, CDouble))
 
 applyOpFromFunction ::
   ((CInt, CDouble, CDouble) -> (CInt, CDouble)) ->
