@@ -45,7 +45,12 @@ module Rapids.Color
     propagateShapeColors,
     propagateSolidColorsToShape,
     propagatePathColors,
-
+    propagatePathEdgeColors,
+    propagatePathColorsToShape,
+    propagateShapeColorsToShape,
+    propagateSolidColors,
+    OpC (..),
+    leftColor,
     colorAttrsMap,
     colorKeys,
     Transform3D (..),
@@ -119,11 +124,17 @@ type ColorKey = (Ptr (), CSize)
 
 type Note = These String (V3 CDouble)
 
+data OpC
+  = OpConstC (Maybe Note)
+  | OpFC (Maybe Note -> Maybe Note -> Maybe Note)
+
+leftColor :: OpC
+leftColor = OpFC (\left _right -> left)
+
 -- | global variable for source location "main.hs:line:col" and color
 {-# NOINLINE colorAttrsMap #-}
 colorAttrsMap :: IORef (Map ColorKey Note)
 colorAttrsMap = unsafePerformIO $ newIORef Map.empty
-
 
 locationStr :: ExpQ
 locationStr = do
@@ -319,6 +330,72 @@ propagatePathColors path solid = unsafePerformIO do
       modifyIORef' colorAttrsMap $ Map.insert key (attrs !! (i `mod` length attrs))
   pure solid
 
+propagateShapeColorsToShape :: Shape -> Shape -> Shape
+propagateShapeColorsToShape source shape = unsafePerformIO do
+  sourceAttrs <- newIORef []
+  withShapeFaces_ source $ \key -> do
+    colorMap <- readIORef colorAttrsMap
+    for_ (Map.lookup key colorMap) $ \attribute ->
+      modifyIORef' sourceAttrs (attribute :)
+  attrs <- reverse <$> readIORef sourceAttrs
+  unless (null attrs) do
+    index <- newIORef 0
+    withShapeFaces_ shape $ \key -> do
+      i <- atomicModifyIORef' index (\n -> (n + 1, n))
+      modifyIORef' colorAttrsMap $ Map.insert key (attrs !! (i `mod` length attrs))
+  pure shape
+
+propagateSolidColors :: Solid -> Solid -> Solid
+propagateSolidColors source solid = unsafePerformIO do
+  sourceAttrs <- newIORef []
+  withFaces_ source $ \key -> do
+    colorMap <- readIORef colorAttrsMap
+    for_ (Map.lookup key colorMap) $ \attribute ->
+      modifyIORef' sourceAttrs (attribute :)
+  attrs <- reverse <$> readIORef sourceAttrs
+  unless (null attrs) do
+    index <- newIORef 0
+    withFaces_ solid $ \key -> do
+      i <- atomicModifyIORef' index (\n -> (n + 1, n))
+      modifyIORef' colorAttrsMap $ Map.insert key (attrs !! (i `mod` length attrs))
+  pure solid
+
+propagatePathEdgeColors :: OpC -> Path -> Path -> Path
+propagatePathEdgeColors policy source path = unsafePerformIO do
+  sourceAttrs <- newIORef []
+  withPathEdges_ source $ \key -> do
+    colorMap <- readIORef colorAttrsMap
+    modifyIORef' sourceAttrs (Map.lookup key colorMap :)
+  attrs <- reverse <$> readIORef sourceAttrs
+  unless (null attrs) do
+    index <- newIORef 0
+    withPathEdges_ path $ \key -> do
+      i <- atomicModifyIORef' index (\n -> (n + 1, n))
+      let left = attrs !! (min i (length attrs - 1))
+          right = attrs !! (min (i + 1) (length attrs - 1))
+          result = case policy of
+            OpConstC value -> value
+            OpFC f -> f left right
+      for_ result $ \value -> modifyIORef' colorAttrsMap (Map.insert key value)
+  pure path
+
+propagatePathColorsToShape :: Path -> Shape -> Shape
+propagatePathColorsToShape path shape = unsafePerformIO do
+  pathAttrs <- newIORef []
+  withPathEdges_ path $ \key -> do
+    colorMap <- readIORef colorAttrsMap
+    for_ (Map.lookup key colorMap) $ \attribute ->
+      modifyIORef' pathAttrs (attribute :)
+  attrs <- reverse <$> readIORef pathAttrs
+  unless (null attrs) do
+    index <- newIORef 0
+    let copyAttribute key = do
+          i <- atomicModifyIORef' index (\n -> (n + 1, n))
+          modifyIORef' colorAttrsMap $ Map.insert key (attrs !! (i `mod` length attrs))
+    withShapeFaces_ shape copyAttribute
+    withShapeEdges_ shape copyAttribute
+  pure shape
+
 withModifiedFaces_ :: Ptr () -> Solid -> (Ptr () -> CSize -> Ptr () -> CSize -> IO ()) -> IO ()
 withModifiedFaces_ history solid kFun =
   [C.block| void{
@@ -366,13 +443,13 @@ mkStepWriterColor = do
 
 writeSTEPColor :: FilePath -> Solid -> IO ()
 writeSTEPColor out solid = do
-    doc <- newXCAFDoc
-    colorMap <- readIORef colorAttrsMap
-    facePayloads <- newIORef []
-    withFaces_ solid $ \k ->
-      for_ (Map.lookup k colorMap) \payload -> facePayloads $~ ((k, payload) :)
-    addShapeWithFaceData doc solid =<< get facePayloads
-    writeXCAFToSTEP out doc
+  doc <- newXCAFDoc
+  colorMap <- readIORef colorAttrsMap
+  facePayloads <- newIORef []
+  withFaces_ solid $ \k ->
+    for_ (Map.lookup k colorMap) \payload -> facePayloads $~ ((k, payload) :)
+  addShapeWithFaceData doc solid =<< get facePayloads
+  writeXCAFToSTEP out doc
 
 -- data Operation = Common | Fuse | Cut | Cut21 | Section | Unknown
 intersections, unions, differences :: [Solid] -> Solid

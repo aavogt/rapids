@@ -17,6 +17,7 @@ import qualified Language.C.Inline.Cpp as Cpp
 import qualified OpenCascade.TopoDS as TopoDS
 import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
 import Rapids.Path.Offset (offsetPath, offsetPath2D, offsetShape)
+import Rapids.Color
 import Rapids.Reexports
   ( Path,
     Path2D,
@@ -49,7 +50,6 @@ Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 
 -- | Offset every solid component and retain a compound when there are many.
-offsetSolidWithTolerance :: CDouble -> CDouble -> CInt -> Solid -> Solid
 offsetSolidWithTolerance tolerance value join solid
   | coerce nearZero value = solid
   | otherwise =
@@ -110,6 +110,7 @@ offsetSolidWithTolerance tolerance value join solid
   return result;
   }|]
         & ownSolid
+        & propagateSolidColors solid
 
 offsetSolid :: CDouble -> CInt -> Solid -> Solid
 offsetSolid = offsetSolidWithTolerance 1e-6
@@ -127,9 +128,6 @@ class Offset a where
 instance {-# INCOHERENT #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
   offset amount solid = offsetJoin (coerce amount) 0 solid
 
--- |
---
--- > offset amount 0 -- sharp
 -- > offset amount 1 -- rounded
 instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where offset amount = offsetJoin (coerce amount)
 

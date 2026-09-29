@@ -135,8 +135,8 @@ mkStepWriter = do
 fustrum d1 d2 h = loft [circle d1, translate ez h (circle d2)]
 
 -- | 'loft2' does linear interpolation between vertices, whereas 'loft' introduces curvature.
-loft2 [x, y] = loft [x, y]
-loft2 (x : y : xs) = loft [x, y] + loft2 (y : xs)
+loft2 [x, y] = propagatePathColors x (loft [x, y])
+loft2 (x : y : xs) = propagatePathColors x (loft [x, y]) + loft2 (y : xs)
 loft2 [] = mempty
 
 -- | > fillet, chamfer :: Double -> solid|path|path2d -> solid|path|path2d
@@ -145,8 +145,8 @@ class FilletChamfer a where
   chamfer :: Double -> a -> a
 
 instance FilletChamfer Solid where
-  fillet = W.roundFillet
-  chamfer = W.chamfer
+  fillet r solid = propagateSolidColors solid (W.roundFillet r solid)
+  chamfer r solid = propagateSolidColors solid (W.chamfer r solid)
 
 instance FilletChamfer Path where
   fillet = filletPath
@@ -158,5 +158,5 @@ instance FilletChamfer Path2D where
 
 -- loses topology? perhaps only the skeleton or outerWire?
 instance FilletChamfer Shape where
-  fillet r = foldMap (makeShape . fillet r) . shapePaths
-  chamfer r = foldMap (makeShape . chamfer r) . shapePaths
+  fillet r = foldMap (\path -> let output = fillet r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
+  chamfer r = foldMap (\path -> let output = chamfer r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths

@@ -14,6 +14,7 @@ import qualified Language.C.Inline.Cpp as Cpp
 import qualified Waterfall.Internal.Path as InternalPath
 import Waterfall.Path (Path)
 import qualified Waterfall.Path as W
+import Rapids.Color
 
 C.context (occtContext <> C.funCtx)
 Cpp.include "<ChFi2d_ChamferAPI.hxx>"
@@ -40,18 +41,25 @@ toCornerOpF f
 
 data OpF = OpConst CInt Double | OpF ((CInt, CDouble, CDouble) -> (CInt, CDouble))
 
+filletPath r = filletPathWithColor leftColor r
+chamferPath r = chamferPathWithColor leftColor r
 
-filletPath r = applyOp \_ -> (1, r)
-chamferPath r = applyOp \_ -> (0, r)
+filletPathWithColor :: OpC -> Double -> Path -> Path
+filletPathWithColor policy r = applyOpWithColor policy (\_ -> (1, r))
+
+chamferPathWithColor :: OpC -> Double -> Path -> Path
+chamferPathWithColor policy r = applyOpWithColor policy (\_ -> (0, r))
 
 -- | @applyOp \(index, leftLength, rightLength) -> (if chamfer then 0 else 1, r)@
-applyOp ::
-  ((CInt, Double, Double) -> (CInt,Double)) ->
-  Path ->
-  Path
-applyOp f path = case toCornerOpF f of
-  (OpConst operation radius) -> fromMaybe path (applyOpConst operation (CDouble radius) path)
-  OpF f -> applyOpFromFunction f path
+applyOp :: ((CInt, Double, Double) -> (CInt, Double)) -> Path -> Path
+applyOp = applyOpWithColor leftColor
+
+applyOpWithColor :: OpC -> ((CInt, Double, Double) -> (CInt, Double)) -> Path -> Path
+applyOpWithColor policy f path =
+  let output = case toCornerOpF f of
+        OpConst operation radius -> fromMaybe path (applyOpConst operation (CDouble radius) path)
+        OpF callback -> applyOpFromFunction callback path
+   in propagatePathEdgeColors policy path output
 
 applyOpFromFunction ::
   ((CInt, CDouble, CDouble) -> (CInt, CDouble)) ->

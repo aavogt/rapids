@@ -21,6 +21,7 @@ import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Waterfall.Internal.Path (Path (..))
 import Waterfall.Internal.Path.Common (RawPath (..))
 import Waterfall.TwoD.Internal.Path2D (Path2D (..))
+import Rapids.Color
 import Waterfall.TwoD.Internal.Shape (Shape (..))
 
 C.context occtContext
@@ -49,7 +50,7 @@ offsetPath ::
   CInt ->
   Path ->
   Path
-offsetPath amount join input =
+offsetPath amount join input = propagatePathEdgeColors leftColor input $
   [Cpp.block| TopoDS_Wire* {
     TopoDS_Wire* spine = $path:input;
     if (spine == nullptr || spine->IsNull()) {
@@ -128,8 +129,7 @@ offsetPath amount join input =
 
 -- | Offset a planar @TopoDS_Face@
 offsetShape :: CDouble -> CInt -> Shape -> Shape
-offsetShape amount join input =
-  ownShape
+offsetShape amount join input = propagateShapeColorsToShape input $ ownShape
     [Cpp.block| TopoDS_Shape* {
       TopoDS_Shape* shape = $shape:input;
       if (shape == nullptr || shape->IsNull()) {

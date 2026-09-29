@@ -4,6 +4,7 @@
 module Rapids.Sweep (sweepRuled) where
 
 import Control.Monad.IO.Class (liftIO)
+import Rapids.Color
 import Foreign.C.Types (CInt)
 import Foreign.Marshal.Array (allocaArray, peekArray, withArray)
 import Foreign.Ptr (Ptr, castPtr)
@@ -57,7 +58,7 @@ sweepRuled pathForVertex input =
    in case pathWires paths of
         Nothing -> emptySolid
         Just wires ->
-          buildSweep2 profile wires
+          propagateShapeColors profile (buildSweep2 profile wires)
 
 shapeVertices :: Shape -> [V2 Double]
 shapeVertices profile = unsafePerformIO $ do
