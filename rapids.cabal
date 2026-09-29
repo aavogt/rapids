@@ -21,6 +21,7 @@ library
       Rapids.BoolOp
       Rapids.Color
       Rapids.Color.AxisTriad
+      Rapids.Color.Query
       Rapids.ConvexHull
       Rapids.EnvDefaults
       Rapids.IniVal
