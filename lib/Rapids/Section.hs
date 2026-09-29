@@ -90,7 +90,7 @@ sectionPerimeter solid = unsafePerformIO
 -- section a solid @s@ with the xy plane
 -- returning a planar shape whose inner contours are holes
 section :: Solid -> Shape
-section solid = propagateSolidColors solid $ ownShape [Cpp.block| TopoDS_Shape* {
+section solid = propagateSolidColorsToShape solid $ ownShape [Cpp.block| TopoDS_Shape* {
     gp_Pln pl;
     TopoDS_Face planeFace = BRepBuilderAPI_MakeFace(pl);
     ShapeUpgrade_UnifySameDomain unifier(*$solid:solid, Standard_True, Standard_True);

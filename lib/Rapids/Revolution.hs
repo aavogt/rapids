@@ -45,10 +45,15 @@ class Revolution a where
   revolution :: a
 
 instance (ToShape profile, Solid ~ solid) => Revolution (profile -> solid) where
-  revolution = unions . map (coerce (sector (2*pi))) . shapePaths . toShape
+  revolution = unions . map (revolvePath (2 * pi)) . shapePaths . toShape
 
 instance {-# INCOHERENT #-} (ToShape profile, radians ~ Double, solid ~ Solid) => Revolution (radians -> profile -> solid) where
-  revolution radians = unions . map (coerce sector radians) . shapePaths . toShape
+  revolution radians = unions . map (revolvePath (coerce radians)) . shapePaths . toShape
+
+revolvePath :: CDouble -> Path2D -> Solid
+revolvePath angle path2d =
+  let path = coerce path2d
+   in propagatePathColors path (sector angle path)
 
 -- | Construct a sector of a 'Solid' of revolution from a 'Path2D'.
 --
