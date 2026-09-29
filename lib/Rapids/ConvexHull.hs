@@ -184,8 +184,10 @@ static TopoDS_Shape* rapids_convex_hull_from_points(const std::vector<gp_Pnt>& o
 solidFromShape :: IO (Ptr Shape) -> Solid
 solidFromShape newShape = Solid $ unsafeFromAcquire (mkAcquire newShape deleteShape)
 
--- | produce convex hull of the vertices within the argument
 class Hull a where
+  -- | produce convex hull of the vertices within the argument
+  --
+  -- @hull :: [V3 Double]|[Path]|Path|Solid -> Solid@
   hull :: a -> Solid
 
 instance Hull [V3 Double] where

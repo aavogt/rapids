@@ -44,11 +44,10 @@ Cpp.include "<TopoDS_Vertex.hxx>"
 Cpp.include "<TopoDS_Wire.hxx>"
 Cpp.include "<gp_Pnt.hxx>"
 
--- | Sweep a profile when its vertices do not share one common spine.
+-- | @sweepRuled (\ shapeVertex -> path) shape = 'sweep' shape@
 --
--- Each profile vertex is mapped to a path by the first argument.  Every
--- profile edge is then made into a ruled surface between the two mapped
--- paths.  The profile and the resulting end profile are sewn to those
+-- sweepRuled creates ruled surfaces between adjacent paths.
+-- The profile and the resulting end profile are sewn to those
 -- surfaces and returned as a solid when the resulting shell is closed.
 sweepRuled :: (ToPath path, ToShape shape) => (V2 Double -> path) -> shape -> Solid
 sweepRuled pathForVertex input =

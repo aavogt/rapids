@@ -17,16 +17,18 @@ module Rapids
     whenEnvParseFail,
 
     -- * create 2D
-    module Rapids.Path,
-    module Rapids.Path.Offset,
-    -- ** specialized "FilletChamfer"
+    rectangle,
+    circle,
+    offset,
+    -- ** specialized 'FilletChamfer'
     chamferPath, filletPath,
     projectPath,
-    module Rapids.Section,
-    module Rapids.Silhouette,
+    section,
+    silhouette,
 
     -- * create 3D
-    module Rapids.ConvexHull,
+    -- "Rapids.ConvexHull"
+    hull,
     pad, sweep,
     sweepRuled,
     loft2,
@@ -56,9 +58,9 @@ module Rapids
     aabb,
 
     -- ** others
-    module Rapids.Revolution,
-    module Rapids.Spiral,
-    module Rapids.Offset,
+    revolution,
+    unitSpiral,
+    offset,
     FilletChamfer(..),
 
     -- * consume 3d
