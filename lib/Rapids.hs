@@ -19,6 +19,8 @@ module Rapids
     -- * create 2D
     module Rapids.Path,
     module Rapids.Path.Offset,
+    -- ** specialized "FilletChamfer"
+    chamferPath, filletPath,
     projectPath,
     module Rapids.Section,
     module Rapids.Silhouette,
@@ -90,6 +92,7 @@ import Rapids.Pad
 import Rapids.Path
 import Rapids.Path.Offset
 import Rapids.Path.Project
+import Rapids.Path.CornerOp
 import Rapids.Reexports
 import Rapids.Revolution
 import Rapids.Rotate
@@ -134,6 +137,7 @@ loft2 [x, y] = loft [x, y]
 loft2 (x : y : xs) = loft [x, y] + loft2 (y : xs)
 loft2 [] = mempty
 
+-- | > fillet, chamfer :: Double -> solid|path|path2d -> solid|path|path2d
 class FilletChamfer a where
   fillet :: Double -> a -> a
   chamfer :: Double -> a -> a
@@ -149,3 +153,8 @@ instance FilletChamfer Path where
 instance FilletChamfer Path2D where
   fillet = coerce filletPath
   chamfer = coerce chamferPath
+
+-- loses topology? perhaps only the skeleton or outerWire?
+instance FilletChamfer Shape where
+  fillet r = foldMap (makeShape . fillet r) . shapePaths
+  chamfer r = foldMap (makeShape . chamfer r) . shapePaths

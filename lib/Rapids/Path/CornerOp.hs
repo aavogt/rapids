@@ -44,7 +44,7 @@ data OpF = OpConst CInt Double | OpF ((CInt, CDouble, CDouble) -> (CInt, CDouble
 filletPath r = applyOp \_ -> (1, r)
 chamferPath r = applyOp \_ -> (0, r)
 
--- | applyOp \(index, leftLength, rightLength) -> (0, r)
+-- | @applyOp \(index, leftLength, rightLength) -> (if chamfer then 0 else 1, r)@
 applyOp ::
   ((CInt, Double, Double) -> (CInt,Double)) ->
   Path ->
