@@ -4,34 +4,59 @@
 module Rapids.Color
   ( mkStepWriterColor,
     writeSTEPColor,
-
-    -- * set colors
     lightgray,
+    lightgrays,
     gray,
+    grays,
     darkgray,
+    darkgrays,
     yellow,
+    yellows,
     gold,
+    golds,
     orange,
+    oranges,
     pink,
+    pinks,
     red,
+    reds,
     maroon,
+    maroons,
     green,
+    greens,
     lime,
+    limes,
     darkgreen,
+    darkgreens,
     skyblue,
+    skyblues,
     blue,
+    blues,
     darkblue,
+    darkblues,
     purple,
+    purples,
     violet,
+    violets,
     darkpurple,
+    darkpurples,
     beige,
+    beiges,
     brown,
+    browns,
     darkbrown,
+    darkbrowns,
     white,
+    whites,
     black,
+    blacks,
     magenta,
+    magentas,
     raywhite,
+    raywhites,
     setColor,
+    setColors,
+    quasiRandomWalk,
     tagLoc,
 
     -- * color propagating
@@ -65,10 +90,12 @@ import Control.Monad (unless)
 import Control.Monad.IO.Class
 import Data.Foldable
 import Data.IORef
+import Data.Int (Int8)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.StateVar
 import Data.These (These (..))
+import Data.Word (Word8)
 import Foreign hiding (rotate)
 import Foreign.C
 import InlineOCCT
@@ -173,10 +200,51 @@ normalizeColor color@(V3 r g b)
     inByte x = 0 <= x && x <= 255
     clamp01 x = max 0 (min 1 x)
 
+byteValue :: Int8 -> Int
+byteValue = fromIntegral . (fromIntegral :: Int8 -> Word8)
+
+fromByteValue :: Int -> Int8
+fromByteValue = fromIntegral
+
+nearbyBytes :: Int8 -> [Int]
+nearbyBytes start =
+  take
+    255
+    [ (byteValue start + offset) `mod` 256
+    | offset <- 0 : concat [[n, -n] | n <- [1 .. 127]]
+    ]
+
+-- | A walk through 255^3 distinct byte-valued RGB colors.  Each coordinate
+-- starts at its corresponding input byte and visits nearby values first.
+quasiRandomWalk :: V3 Int8 -> [V3 Int8]
+quasiRandomWalk (V3 r g b) =
+  [ V3 (fromByteValue x) (fromByteValue y) (fromByteValue z)
+  | (ix, x) <- zip [0 ..] xs,
+    (iy, y) <- zip [0 ..] (if even ix then ys else reverse ys),
+    z <- if even (ix + iy) then zs else reverse zs
+  ]
+  where
+    xs = nearbyBytes r
+    ys = nearbyBytes g
+    zs = nearbyBytes b
+
+int8Color :: V3 Int8 -> V3 CDouble
+int8Color = fmap ((/ 255) . fromIntegral . byteValue)
+
 setColor :: V3 CDouble -> Solid -> Solid
-setColor (normalizeColor -> color) (Solid raw) = unsafeFromAcquire do
+setColor color = setColors (repeat color)
+
+setColors :: [V3 CDouble] -> Solid -> Solid
+setColors colors (Solid raw) = unsafeFromAcquire do
   solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
-  liftIO $ withFaces_ solid $ \k -> modifyIORef' colorAttrsMap $ Map.alter (Just . combineColor color) k
+  colorsRef <- liftIO $ newIORef colors
+  liftIO $ withFaces_ solid $ \k -> do
+    color <- atomicModifyIORef' colorsRef \remaining ->
+      case remaining of
+        [] -> ([], Nothing)
+        color : rest -> (rest, Just color)
+    for_ color $ \color' ->
+      modifyIORef' colorAttrsMap $ Map.alter (Just . combineColor (normalizeColor color')) k
   pure solid
 
 tagFaceNote :: String -> Solid -> Solid
@@ -652,13 +720,23 @@ writeXCAFToSTEP filepath doc =
 mkTaggedColor :: V3 CDouble -> ExpQ
 mkTaggedColor color = [|$tagLoc . setColor color|]
 
+mkTaggedColors :: V3 Int8 -> ExpQ
+mkTaggedColors color = [|$tagLoc . setColors (map int8Color (quasiRandomWalk color))|]
+
+byte8 :: Int -> Int8
+byte8 = fromIntegral
+
 deriving instance Lift CDouble
 
 {- ORMOLU_DISABLE -}
 lightgray, gray, darkgray, yellow, gold, orange, pink, red,
   maroon, green, lime, darkgreen, skyblue, blue, darkblue,
   purple, violet, darkpurple, beige, brown, darkbrown, white,
-  black, magenta, raywhite :: ExpQ
+  black, magenta, raywhite,
+  lightgrays, grays, darkgrays, yellows, golds, oranges, pinks, reds,
+  maroons, greens, limes, darkgreens, skyblues, blues, darkblues,
+  purples, violets, darkpurples, beiges, browns, darkbrowns, whites,
+  blacks, magentas, raywhites :: ExpQ
 lightgray = mkTaggedColor (V3 200 200 200)
 gray = mkTaggedColor (V3 130 130 130)
 darkgray = mkTaggedColor (V3 80 80 80)
@@ -684,4 +762,29 @@ white = mkTaggedColor (V3 255 255 255)
 black = mkTaggedColor (V3 0 0 0)
 magenta = mkTaggedColor (V3 255 0 255)
 raywhite = mkTaggedColor (V3 245 245 245)
-{- ORMOLU ENABLE -}
+lightgrays = mkTaggedColors (V3 (byte8 200) (byte8 200) (byte8 200))
+grays = mkTaggedColors (V3 (byte8 130) (byte8 130) (byte8 130))
+darkgrays = mkTaggedColors (V3 (byte8 80) (byte8 80) (byte8 80))
+yellows = mkTaggedColors (V3 (byte8 253) (byte8 249) (byte8 0))
+golds = mkTaggedColors (V3 (byte8 255) (byte8 203) (byte8 0))
+oranges = mkTaggedColors (V3 (byte8 255) (byte8 161) (byte8 0))
+pinks = mkTaggedColors (V3 (byte8 255) (byte8 109) (byte8 194))
+reds = mkTaggedColors (V3 (byte8 230) (byte8 41) (byte8 55))
+maroons = mkTaggedColors (V3 (byte8 190) (byte8 33) (byte8 55))
+greens = mkTaggedColors (V3 (byte8 0) (byte8 228) (byte8 48))
+limes = mkTaggedColors (V3 (byte8 0) (byte8 158) (byte8 47))
+darkgreens = mkTaggedColors (V3 (byte8 0) (byte8 117) (byte8 44))
+skyblues = mkTaggedColors (V3 (byte8 102) (byte8 191) (byte8 255))
+blues = mkTaggedColors (V3 (byte8 0) (byte8 121) (byte8 241))
+darkblues = mkTaggedColors (V3 (byte8 0) (byte8 82) (byte8 172))
+purples = mkTaggedColors (V3 (byte8 200) (byte8 122) (byte8 255))
+violets = mkTaggedColors (V3 (byte8 135) (byte8 60) (byte8 190))
+darkpurples = mkTaggedColors (V3 (byte8 112) (byte8 31) (byte8 126))
+beiges = mkTaggedColors (V3 (byte8 211) (byte8 176) (byte8 131))
+browns = mkTaggedColors (V3 (byte8 127) (byte8 106) (byte8 79))
+darkbrowns = mkTaggedColors (V3 (byte8 76) (byte8 63) (byte8 47))
+whites = mkTaggedColors (V3 (byte8 255) (byte8 255) (byte8 255))
+blacks = mkTaggedColors (V3 (byte8 0) (byte8 0) (byte8 0))
+magentas = mkTaggedColors (V3 (byte8 255) (byte8 0) (byte8 255))
+raywhites = mkTaggedColors (V3 (byte8 245) (byte8 245) (byte8 245))
+{- ORMOLU_ENABLE -}
