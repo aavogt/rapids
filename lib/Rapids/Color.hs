@@ -320,6 +320,7 @@ withFaces_ solid (curry -> kFun) =
       $fun:(void (*kFun)(void*, size_t))(shapePtr, locHash);
   }
 } |]
+
 withShapeFaces_ :: Shape -> (ColorKey -> IO ()) -> IO ()
 withShapeFaces_ shape (curry -> kFun) =
   [C.block| void{
@@ -331,6 +332,7 @@ withShapeFaces_ shape (curry -> kFun) =
       $fun:(void (*kFun)(void*, size_t))(shapePtr, locHash);
   }
 } |]
+
 withShapeEdges_ :: Shape -> (ColorKey -> IO ()) -> IO ()
 withShapeEdges_ shape (curry -> kFun) =
   [C.block| void{
@@ -371,6 +373,7 @@ propagateShapeColors shape solid = unsafePerformIO do
       i <- atomicModifyIORef' index (\n -> (n + 1, n))
       modifyIORef' colorAttrsMap $ Map.insert key (attrs !! (i `mod` length attrs))
   pure solid
+
 propagateSolidColorsToShape :: Solid -> Shape -> Shape
 propagateSolidColorsToShape source shape = unsafePerformIO do
   sourceAttrs <- newIORef []
