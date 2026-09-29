@@ -8,6 +8,6 @@ import Data.IORef
 redCube = $red unitCube
 
 main = do
-  fks <- faceKeys $ pad 2 $ section redCube
-  m <- readIORef faceAttrsMap
+  fks <- colorKeys $ pad 2 $ section redCube
+  m <- readIORef colorAttrsMap
   print (m `restrictKeys` Set.fromList fks, m)

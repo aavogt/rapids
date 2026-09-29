@@ -44,8 +44,8 @@ module Rapids.Color
     PropagateColor (..),
 
     -- * internals
-    faceAttrsMap,
-    faceKeys,
+    colorAttrsMap,
+    colorKeys,
     Transform3D (..),
     composeTransform3D,
     Transform2D (..),
@@ -111,12 +111,12 @@ Cpp.include "<TDataStd_Name.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 Cpp.include "<stdio.h>"
 
-type FaceKey = (Ptr (), CSize)
+type ColorKey = (Ptr (), CSize)
 
 -- | global variable for source location "main.hs:line:col" and color
-{-# NOINLINE faceAttrsMap #-}
-faceAttrsMap :: IORef (Map FaceKey (These String (V3 CDouble)))
-faceAttrsMap = unsafePerformIO $ newIORef Map.empty
+{-# NOINLINE colorAttrsMap #-}
+colorAttrsMap :: IORef (Map ColorKey (These String (V3 CDouble)))
+colorAttrsMap = unsafePerformIO $ newIORef Map.empty
 
 locationStr :: ExpQ
 locationStr = do
@@ -158,17 +158,17 @@ normalizeColor color@(V3 r g b)
 setColor :: V3 CDouble -> Solid -> Solid
 setColor (normalizeColor -> color) (Solid raw) = unsafeFromAcquire do
   solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
-  liftIO $ withFaces_ solid $ \k -> modifyIORef' faceAttrsMap $ Map.alter (Just . combineColor color) k
+  liftIO $ withFaces_ solid $ \k -> modifyIORef' colorAttrsMap $ Map.alter (Just . combineColor color) k
   pure solid
 
 tagFaceNote :: String -> Solid -> Solid
 tagFaceNote note solid = unsafeFromAcquire do
-  liftIO $ withFaces_ solid $ \k -> modifyIORef' faceAttrsMap $ Map.alter (Just . combineNote note) k
+  liftIO $ withFaces_ solid $ \k -> modifyIORef' colorAttrsMap $ Map.alter (Just . combineNote note) k
   pure solid
 
--- | may become `Solid -> Set FaceKey`
-faceKeys :: Solid -> IO [FaceKey]
-faceKeys solid = do
+-- | may become `Solid -> Set ColorKey`
+colorKeys :: Solid -> IO [ColorKey]
+colorKeys solid = do
   keysRef <- newIORef []
   withFaces_ solid $ \k ->
     modifyIORef' keysRef (k :)
@@ -209,15 +209,15 @@ instance {-# OVERLAPS #-} (Transformable a) => PropagateColor a where propagateC
 instance PropagateColor Solid where
   propagateColor f solid = unsafePerformIO do
     let !solid' = f solid
-    colorMap <- readIORef faceAttrsMap
-    inKeys <- faceKeys solid
-    outKeys <- faceKeys solid'
+    colorMap <- readIORef colorAttrsMap
+    inKeys <- colorKeys solid
+    outKeys <- colorKeys solid'
     for_ (zip inKeys outKeys) \(srcKey, dstKey) ->
       for_ (Map.lookup srcKey colorMap) \color ->
-        modifyIORef' faceAttrsMap $ Map.insert dstKey color
+        modifyIORef' colorAttrsMap $ Map.insert dstKey color
     pure solid'
 
-withFaces_ :: Solid -> (FaceKey -> IO ()) -> IO ()
+withFaces_ :: Solid -> (ColorKey -> IO ()) -> IO ()
 withFaces_ solid (curry -> kFun) =
   [C.block| void{
   TopExp_Explorer explorer(*$solid:solid, TopAbs_FACE);
@@ -277,7 +277,7 @@ mkStepWriterColor = do
 writeSTEPColor :: FilePath -> Solid -> IO ()
 writeSTEPColor out solid = do
     doc <- newXCAFDoc
-    colorMap <- readIORef faceAttrsMap
+    colorMap <- readIORef colorAttrsMap
     facePayloads <- newIORef []
     withFaces_ solid $ \k ->
       for_ (Map.lookup k colorMap) \payload -> facePayloads $~ ((k, payload) :)
@@ -303,11 +303,11 @@ withBooleans2 op inputs = withBooleans op inputs \(result, history) -> do
 propagateColors :: Ptr () -> [Solid] -> IO ()
 propagateColors history _ | history == nullPtr = return ()
 propagateColors history solids = do
-  colorMap <- readIORef faceAttrsMap
+  colorMap <- readIORef colorAttrsMap
   for_ solids \solid ->
     withModifiedFaces_ history solid $ \srcShapePtr srcLocHash dstShapePtr dstLocHash ->
       for_ (Map.lookup (srcShapePtr, srcLocHash) colorMap) \color ->
-        modifyIORef' faceAttrsMap $ \m -> Map.insert (dstShapePtr, dstLocHash) color m
+        modifyIORef' colorAttrsMap $ \m -> Map.insert (dstShapePtr, dstLocHash) color m
 
 -- Returns a raw doc pointer you thread through
 newXCAFDoc :: IO (Ptr ())
@@ -320,7 +320,7 @@ newXCAFDoc =
     return doc.get();
 }|]
 
-addShapeWithFaceData :: Ptr () -> Solid -> [(FaceKey, These String (V3 CDouble))] -> IO ()
+addShapeWithFaceData :: Ptr () -> Solid -> [(ColorKey, These String (V3 CDouble))] -> IO ()
 addShapeWithFaceData doc solid faceData = do
   let toParts ((shapePtr, locHash), payload) =
         case payload of
