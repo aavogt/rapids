@@ -45,6 +45,7 @@ module Rapids.Color
 
     -- * internals
     faceAttrsMap,
+    faceKeys,
     Transform3D (..),
     composeTransform3D,
     Transform2D (..),
@@ -165,6 +166,7 @@ tagFaceNote note solid = unsafeFromAcquire do
   liftIO $ withFaces_ solid $ \k -> modifyIORef' faceAttrsMap $ Map.alter (Just . combineNote note) k
   pure solid
 
+-- | may become `Solid -> Set FaceKey`
 faceKeys :: Solid -> IO [FaceKey]
 faceKeys solid = do
   keysRef <- newIORef []

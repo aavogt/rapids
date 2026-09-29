@@ -39,3 +39,8 @@ executables:
     main: silhouette.hs
     dependencies:
       - test
+  color:
+    main: color.hs
+    dependencies:
+      - test
+      - containers
