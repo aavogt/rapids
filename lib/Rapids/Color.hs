@@ -113,9 +113,11 @@ Cpp.include "<stdio.h>"
 
 type ColorKey = (Ptr (), CSize)
 
+type Note = These String (V3 CDouble)
+
 -- | global variable for source location "main.hs:line:col" and color
 {-# NOINLINE colorAttrsMap #-}
-colorAttrsMap :: IORef (Map ColorKey (These String (V3 CDouble)))
+colorAttrsMap :: IORef (Map ColorKey Note)
 colorAttrsMap = unsafePerformIO $ newIORef Map.empty
 
 locationStr :: ExpQ
@@ -129,7 +131,7 @@ locationStr = do
 tagLoc :: ExpQ
 tagLoc = [|tagFaceNote $(locationStr)|]
 
-combineNote :: String -> Maybe (These String (V3 CDouble)) -> These String (V3 CDouble)
+combineNote :: String -> Maybe Note -> Note
 combineNote note mOld =
   case mOld of
     Nothing -> This note
@@ -137,7 +139,7 @@ combineNote note mOld =
     Just (That color) -> These note color
     Just (These _ color) -> These note color
 
-combineColor :: V3 CDouble -> Maybe (These String (V3 CDouble)) -> These String (V3 CDouble)
+combineColor :: V3 CDouble -> Maybe Note -> Note
 combineColor color mOld =
   case mOld of
     Nothing -> That color
@@ -320,7 +322,7 @@ newXCAFDoc =
     return doc.get();
 }|]
 
-addShapeWithFaceData :: Ptr () -> Solid -> [(ColorKey, These String (V3 CDouble))] -> IO ()
+addShapeWithFaceData :: Ptr () -> Solid -> [(ColorKey, Note)] -> IO ()
 addShapeWithFaceData doc solid faceData = do
   let toParts ((shapePtr, locHash), payload) =
         case payload of
