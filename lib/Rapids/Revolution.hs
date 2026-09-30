@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 module Rapids.Revolution where
 
 import Data.Acquire (mkAcquire)
@@ -36,18 +34,17 @@ Cpp.include "<gp_Dir.hxx>"
 Cpp.include "<gp_Pnt.hxx>"
 
 class Revolution a where
-  -- | rotate around the profile y axis (which becomes the solid z axis) with
+  -- | rotate around the shape y axis (which becomes the solid z axis) with
   -- an optional angle for how far around the axis to go (clockwise with the
   -- camera pointed down (towards z= -infinity))
   --
-  -- > revolution profile
-  -- > revolution radians profile
+  -- > revolution <radians> shape
   revolution :: a
 
-instance (ToShape profile, Solid ~ solid) => Revolution (profile -> solid) where
+instance (ToShape shape, Solid ~ solid) => Revolution (shape -> solid) where
   revolution = unions . map (revolvePath (2 * pi)) . shapePaths . toShape
 
-instance {-# INCOHERENT #-} (ToShape profile, radians ~ Double, solid ~ Solid) => Revolution (radians -> profile -> solid) where
+instance {-# INCOHERENT #-} (ToShape shape, radians ~ Double, solid ~ Solid) => Revolution (radians -> shape -> solid) where
   revolution radians = unions . map (revolvePath (coerce radians)) . shapePaths . toShape
 
 revolvePath :: CDouble -> Path2D -> Solid
@@ -75,7 +72,7 @@ sector angle path =
         }
 
         TopoDS_Face face = faceBuilder.Face();
-        TopoDS_Shape profile = face;
+        TopoDS_Shape shape = face;
         gp_Ax1 axis(gp_Pnt(0.0, 0.0, 0.0), gp_Dir(0.0, 1.0, 0.0));
         Bnd_Box bounds;
         BRepBndLib::Add(face, bounds);
@@ -102,11 +99,11 @@ sector angle path =
           if (splitter.HasErrors()) {
             return new TopoDS_Shape();
           }
-          profile = splitter.Shape();
+          shape = splitter.Shape();
         }
 
         TopoDS_Shape result;
-        for (TopExp_Explorer explorer(profile, TopAbs_FACE);
+        for (TopExp_Explorer explorer(shape, TopAbs_FACE);
              explorer.More(); explorer.Next()) {
           BRepPrimAPI_MakeRevol revol(explorer.Current(), axis, $(double angle), true);
           if (!revol.IsDone()) {
@@ -126,7 +123,7 @@ sector angle path =
         }
 
         if (result.IsNull()) {
-          BRepPrimAPI_MakeRevol revol(profile, axis, $(double angle), true);
+          BRepPrimAPI_MakeRevol revol(shape, axis, $(double angle), true);
           if (!revol.IsDone()) {
             return new TopoDS_Shape();
           }
