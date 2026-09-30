@@ -76,6 +76,7 @@ library
       RankNTypes
       StandaloneDeriving
       DeriveLift
+      OverloadedLabels
   extra-libraries:
       TKBool
       TKHLR

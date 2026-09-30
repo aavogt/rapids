@@ -49,6 +49,7 @@ default-extensions:
   - RankNTypes
   - StandaloneDeriving
   - DeriveLift
+  - OverloadedLabels
 
 library:
   source-dirs:
