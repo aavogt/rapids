@@ -11,7 +11,7 @@ import qualified Waterfall as W
 -- |
 -- > translate
 -- >    x y z
--- >    (V3 x y z)
+-- >    v3
 -- >    ex x
 -- >    ey y
 -- >    ez z

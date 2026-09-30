@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
--- | Sweep a profile while allowing each profile vertex to have its own path.
+-- | Sweep a shape while allowing each shape vertex to have its own path.
 module Rapids.Sweep (sweepRuled) where
 
 import Control.Monad.IO.Class (liftIO)
@@ -48,22 +48,22 @@ Cpp.include "<gp_Pnt.hxx>"
 -- | @sweepRuled (\\ _shapeVertex -> path) shape = 'sweep' path shape@ at least for shapes with straight edges.
 --
 -- sweepRuled creates ruled surfaces between adjacent paths.
--- The profile and the resulting end profile are sewn to those
+-- The shape and the resulting end shape are sewn to those
 -- surfaces and returned as a solid when the resulting shell is closed.
 sweepRuled :: (ToPath path, ToShape shape) => (V2 Double -> path) -> shape -> Solid
 sweepRuled pathForVertex input =
-  let profile = toShape input
-      vertices = shapeVertices profile
+  let shape = toShape input
+      vertices = shapeVertices shape
       paths = map (toPath . pathForVertex) vertices
    in case pathWires paths of
         Nothing -> emptySolid
         Just wires ->
-          propagateShapeColors profile (buildSweep2 profile wires)
+          propagateShapeColors shape (buildSweep2 shape wires)
 
 shapeVertices :: Shape -> [V2 Double]
-shapeVertices profile = unsafePerformIO $ do
+shapeVertices shape = unsafePerformIO $ do
   count <- fromIntegral <$> [Cpp.block| int {
-    TopoDS_Shape* input = $shape:profile;
+    TopoDS_Shape* input = $shape:shape;
     if (input == nullptr || input->IsNull()) {
       return 0;
     }
@@ -73,7 +73,7 @@ shapeVertices profile = unsafePerformIO $ do
   } |]
   allocaArray (2 * count) $ \output -> do
     liftIO [Cpp.block| void {
-      TopoDS_Shape* input = $shape:profile;
+      TopoDS_Shape* input = $shape:shape;
       double* output = $(double *output);
       if (input == nullptr || input->IsNull()) {
         return;
@@ -99,12 +99,12 @@ pathWires = traverse pathWire
     pathWire (InternalPath.Path raw) = castPtr <$> rawPathWire raw
 
 buildSweep2 :: Shape -> [Ptr ()] -> Solid
-buildSweep2 profile wires =
+buildSweep2 shape wires =
   let wireCount = fromIntegral (length wires) :: CInt
    in ownSolid $ withArray wires $ \wireArray ->
         [Cpp.block| TopoDS_Shape* {
           TopoDS_Shape* result = new TopoDS_Shape();
-          TopoDS_Shape* input = $shape:profile;
+          TopoDS_Shape* input = $shape:shape;
           void** pathPtrs = $(void** wireArray);
           const int pathCount = $(int wireCount);
           if (input == nullptr || input->IsNull() || pathCount == 0) {
@@ -139,15 +139,15 @@ buildSweep2 profile wires =
 
             BRepBuilderAPI_Sewing sewing(1.0e-7);
 
-            // Keep the original profile as the start cap.  This also keeps
-            // curved profile edges instead of replacing them with chords.
+            // Keep the original shape as the start cap.  This also keeps
+            // curved shape edges instead of replacing them with chords.
             for (TopExp_Explorer faces(*input, TopAbs_FACE);
                  faces.More(); faces.Next()) {
               sewing.Add(faces.Current());
             }
 
             // BRepFill::Shell applies BRepFill::Face to corresponding edges
-            // of the two paths.  Thus each profile edge becomes a ruled
+            // of the two paths.  Thus each shape edge becomes a ruled
             // patch whose boundaries follow the two vertex paths.
             for (TopExp_Explorer edges(*input, TopAbs_EDGE);
                  edges.More(); edges.Next()) {
@@ -169,7 +169,7 @@ buildSweep2 profile wires =
             }
 
             // Rebuild the end cap from the terminal points of the paths.
-            // The profile is planar in the public ToShape API, so a planar
+            // The shape is planar in the public ToShape API, so a planar
             // wire made from those points is sufficient here.
             for (TopExp_Explorer faces(*input, TopAbs_FACE);
                  faces.More(); faces.Next()) {

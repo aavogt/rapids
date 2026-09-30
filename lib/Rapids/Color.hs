@@ -358,7 +358,7 @@ withPathEdges_ path (curry -> kFun) =
   }
 } |]
 
--- | Copy profile attributes onto all faces made by a sweep.
+-- | Copy shape attributes onto all faces made by a sweep.
 propagateShapeColors :: Shape -> Solid -> Solid
 propagateShapeColors shape solid = unsafePerformIO do
   sourceAttrs <- newIORef []

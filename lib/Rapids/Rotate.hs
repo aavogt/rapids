@@ -10,22 +10,22 @@ import qualified Waterfall as W
 
 -- | Rotate a 'Transformable' by radians around an axis specified in one of these ways:
 --
--- > rotate x y z rad :: Transformable a => a -> a
--- > rotate v     rad
+-- > rotate x y z radians :: Transformable a => a -> a
+-- > rotate v3    radians
 -- > rotate q
--- > rotate ex    rad
+-- > rotate ex    radians
 rotate :: (RotateGo r t) => r
 rotate = rotateGo id \axis angle x -> W.rotate axis (mod2pi angle) x
 
 rotated :: (Num t, RotateGo r t) => r
 rotated = rotateGo id \axis angle x -> x + W.rotate axis (mod2pi angle) x
 
--- \ Rotate a 'Transformable' by degrees around an axis specified in one of these ways:
+-- | Rotate a 'Transformable' by degrees around an axis specified in one of these ways:
 --
--- > _rotatedDeg x y z deg
--- > _rotatedDeg v3 deg
--- > _rotatedDeg q  deg -- ignore the quaternion's magnitude
--- > _rotatedDeg ey deg
+-- > rotateDeg x y z deg
+-- > rotateDeg v3 deg
+-- > rotateDeg q  deg -- ignore the quaternion's magnitude
+-- > rotateDeg ey deg
 rotateDeg :: (RotateGo r t) => r
 rotateDeg = rotateGo id \axis angle x -> W.rotate axis (fromDeg angle) x
 

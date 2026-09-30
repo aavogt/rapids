@@ -41,8 +41,8 @@ class UnitSpiral a where
   -- > scale r pitch $ unitSpiral turns taperSlope $ rectangle w h
   unitSpiral :: Double -> a
 
-instance {-# INCOHERENT #-} (taper ~ Double, ToShape profile, Solid ~ solid) => UnitSpiral (taper -> profile -> solid) where
-  unitSpiral turns taperSlope profile = foldMap (unitSpiral1 turns taperSlope) $ shapePaths $ toShape profile
+instance {-# INCOHERENT #-} (taperSlope ~ Double, ToShape shape, Solid ~ solid) => UnitSpiral (taperSlope -> shape -> solid) where
+  unitSpiral turns taperSlope shape = foldMap (unitSpiral1 turns taperSlope) $ shapePaths $ toShape shape
 
 -- TODO sweepRuled should be more efficient
 unitSpiral1 :: Double -> Double -> Path2D -> Solid
@@ -57,7 +57,7 @@ unitSpiral1 turns taperSlope sh =
           let th = pi * n / nperhalfturn
       ]
 
-instance {-# OVERLAPPABLE #-} UnitSpiral (Double -> profile -> solid) => UnitSpiral (profile -> solid) where
+instance {-# OVERLAPPABLE #-} UnitSpiral (Double -> shape -> solid) => UnitSpiral (shape -> solid) where
   unitSpiral turns sh = unitSpiral turns (0 :: Double) sh
 
 spiralFrame :: (Transformable t) => Double -> Double -> t -> t
