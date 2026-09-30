@@ -66,6 +66,7 @@ module Rapids
     -- * consume 3d
     module Rapids.Statistics,
     -- $also "Rapids.Section"
+    colorQuery,
 
     -- * implementation details
     module Rapids.Num,
@@ -84,6 +85,7 @@ import Data.IORef
 import Rapids.AABB
 import Rapids.AABB.Align
 import Rapids.Color
+import Rapids.Color.Query (colorQuery)
 import Rapids.ConvexHull
 import Rapids.EnvDefaults
 import Rapids.IniVal

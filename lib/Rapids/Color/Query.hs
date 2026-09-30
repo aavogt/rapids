@@ -240,13 +240,28 @@ chunksOf n xs = let (a, b) = splitAt n xs in a : chunksOf n b
 instance (KnownSymbol value) => IsLabel value (Solid -> V3 Double) where
   fromLabel = findVertexByColors (symbolVal (Proxy @value))
 
--- | The number of colors determines the result (V3 Double for >=3 colors otherwise return a Path)
--- This is usually correct. The vertex on a cylinder has 2 faces, but the producer of the string
--- (OOCT_XCAF_FacePicker) either has to list the same color twice, or there
--- could be something else to signal the result type
+-- | colorQuery finds paths or vertices given face colors
 --
--- > [colorQuery|027bf20279f00177ef007af1|] :: Solid -> V3 Double
--- > [colorQuery|027bf2|] :: Solid -> Path
+-- @aavogt/OCCT_XCAF_FacePicker@'s shift-left-click on a vertex whose faces
+-- were colored using 'blues' etc. (ie. @main = writeSTEPColor "circle.step" ($blues solid)@)
+-- will print a line like the following:
+--
+-- >circle.step:0:1:1:1:v45 snap:3.9,-1.0,1 ... [colorQuery|0176f20078ee0176f00076f20078f1|]
+--
+-- > main = do
+-- >  let bs = $blues solid
+-- >  writeSTEPColor "circle.step"
+-- >  let q = [colorQuery|0176f20078ee0176f00076f20078f1|] -- from OCCT_XCAF_FacePicker
+-- >  let a = q bs -- V3 3.9 (-1.0) 1
+-- >  let b = q $ t bs
+--
+-- This finds the vertex at which face colors @#0176f2 #0078ee #0176f0 #0076f2 #0078f1@ meet.
+-- Whereas vertex indexes are invalidated by small changes far from the vertex,
+-- where for example removing vertex 1 then means vertex 45 in the old Solid is vertex 44 in the new Solid,
+-- the colorQuery vertex index allows @t :: Solid -> Solid@ to remove geometry
+-- away from the vertex, reposition the vertex and still produce the new vertex coordinates @b@.
+-- Changes to @solid@ (before colors are assigned by @$blues@) will silently
+-- produce the wrong coordinates, as will applying @q@ to an unrelated solid.
 colorQuery :: QuasiQuoter
 colorQuery =
   QuasiQuoter
