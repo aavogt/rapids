@@ -2,12 +2,14 @@
 
 Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-warren/opencascade-hs), where I add missing operations and other quality-of-life features:
 
-  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L8) `$red :: Solid -> Solid` also add source locations and propagate through most 3d operations to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker)
-  - `pad` generalizes Waterfall.prism turning any `shape` into a `Solid` with optional taperFrac :
+  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L8) `$red :: Solid -> Solid` also add source locations and propagate through to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker).
+  - [colorQuery](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color/Query.hs#L243) finds vertex coordinates (`V3 Double`) on modified `Solid`s based on face colors.
+  - `pad` generalizes Waterfall.prism turning any `shape` into a `Solid` with optional taperFrac:
     - `pad <x y> z <taperFrac> shape`
     - `pad v3 <taperFrac>`
   - `offset amount <join> solid|shape|path|path2d` with join 0,1,2 for [Arc Tangent or Intersection respectively](https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html)
   - `sweep path shape`
+  - `sweepRuled (\shapeVertex -> path) shape`
   - `revolution <radians> shape`
   - `unitSpiral turns <taperSlope> shape`
   - `hull points` is a meshed convex hull of vertices extracted from a `Solid`, `[V3 Double]` `[Path]` or `Path`. [Curved edges aren't supported yet](https://github.com/aavogt/rapids/issues/1).
