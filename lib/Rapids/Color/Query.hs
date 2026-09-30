@@ -165,12 +165,41 @@ unsafeFind (Just wanted) solid = System.IO.Unsafe.unsafePerformIO $ do
   } |]
   entries <- readIORef incidents
   attrs <- readIORef colorAttrsMap
-  pure $
-    maybe (V3 0 0 0) (fst . fst) $
-      Map.minViewWithKey $
-        Map.filter (matches wanted attrs) entries
+  let matching = Map.toList $ Map.filter (matches wanted attrs) entries
+  pure $ case matching of
+    [] -> V3 0 0 0
+    _ -> fst $ List.minimumBy (compareCandidates wanted attrs) matching
   where
-    matches wanted attrs keys = traverse (lookupColor attrs) keys == Just wanted
+    compareCandidates wanted attrs (pointA, keysA) (pointB, keysB) =
+      compare
+        (candidateScore wanted attrs keysA, pointA)
+        (candidateScore wanted attrs keysB, pointB)
+
+    candidateScore wanted attrs keys = case traverse (lookupColor attrs) keys of
+      Nothing -> maxBound
+      Just actual ->
+        let extras = max 0 (length actual - length wanted)
+            distance = sum [minimum [channelDistance expected actualColor | actualColor <- actual] | expected <- wanted]
+         in extras * 1000 + distance
+    channelDistance (r1, g1, b1) (r2, g2, b2) =
+      abs (fromIntegral r1 - fromIntegral r2 :: Int)
+        + abs (fromIntegral g1 - fromIntegral g2 :: Int)
+        + abs (fromIntegral b1 - fromIntegral b2 :: Int)
+    matches wanted attrs keys = case traverse (lookupColor attrs) keys of
+      Just actual -> matchesColors wanted actual
+      Nothing -> False
+
+    matchesColors [] _ = True
+    matchesColors (wantedColor : rest) actual = case List.findIndex (near wantedColor) actual of
+      Nothing -> False
+      Just index -> matchesColors rest (removeAt index actual)
+
+    near (r1, g1, b1) (r2, g2, b2) =
+      close r1 r2 && close g1 g2 && close b1 b2
+
+    close a b = a == b -- abs (fromIntegral a - fromIntegral b :: Int) <= 1
+
+    removeAt index xs = let (before, _ : after) = splitAt index xs in before ++ after
 
 lookupColor :: Map.Map ColorKey Note -> ColorKey -> Maybe RGB
 lookupColor attrs key = do
@@ -223,8 +252,8 @@ colorQuery =
   QuasiQuoter
     { quoteExp = \input ->
         case (validColorString input, length input `div` 6) of
-          (True, n) | n < 3 -> [|colorQueryFromString input :: Solid -> Path |]
-          (True, _) -> [|colorQueryFromString input :: Solid -> V3 Double |]
+          (True, n) | n < 3 -> [|colorQueryFromString input :: Solid -> Path|]
+          (True, _) -> [|colorQueryFromString input :: Solid -> V3 Double|]
           _ -> fail "colorQuery expects one or more six-digit hexadecimal RGB colors",
       quotePat = const $ fail "colorQuery is expression-only",
       quoteType = const $ fail "colorQuery is expression-only",
