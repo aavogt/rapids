@@ -3,4 +3,4 @@ module Rapids.Reexports.Linear (
     ) where
 
 
-import Linear hiding (rotate, scaled, nearZero)
+import Linear hiding (rotate, scaled, nearZero, frustum)

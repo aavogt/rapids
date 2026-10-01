@@ -45,7 +45,7 @@ module Rapids
     -- ** predefined solids
     axisTriad,
     module Waterfall.Solids,
-    fustrum,
+    frustum,
 
     -- ** affine transforms #affine#
 
@@ -141,9 +141,9 @@ mkStepWriter = do
     writeSTEP out solid
     return out
 
--- | @fustrum d1 d2 h@ has a circle of diameter @d2@ at z=@h@, and another circle of diameter @d1@ at z=0
-fustrum :: Double -> Double -> Double -> Solid
-fustrum d1 d2 h = loft [circle d1, translate ez h (circle d2)]
+-- | @frustum d1 d2 h@ has a @d1@ diameter cirlein the xy plane (z=0) and a @d2@ diameter in the z=@h@ plane.
+frustum :: Double -> Double -> Double -> Solid
+frustum d1 d2 h = loft [circle d1, translate ez h (circle d2)]
 
 -- | 'loft2' does linear interpolation between vertices, whereas 'loft' introduces curvature.
 loft2 :: [Path] -> Solid
