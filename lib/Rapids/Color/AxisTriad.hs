@@ -1,9 +1,7 @@
 module Rapids.Color.AxisTriad where
 
 import Rapids.Reexports
-import Rapids.Scale
-import Rapids.Translate
-import Rapids.Rotate
+import Rapids.Transforms
 import Rapids.Num
 import Rapids.ToShape
 import Rapids.Pad

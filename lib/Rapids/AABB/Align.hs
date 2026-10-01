@@ -17,7 +17,7 @@ import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Linear.Vector
 import Control.Lens
 import Data.Maybe
-import Rapids.Translate
+import Rapids.Transforms
 import Rapids.Num
 import Rapids.AABB
 import Rapids.AABB.Lens

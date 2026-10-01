@@ -3,8 +3,7 @@
 module Rapids.Num where
 
 import Data.Maybe
-import Rapids.Mirror
-import Rapids.Scale
+import Rapids.Transforms
 import Rapids.Statistics
 import Rapids.AABB
 import Linear

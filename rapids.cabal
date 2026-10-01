@@ -25,7 +25,6 @@ library
       Rapids.ConvexHull
       Rapids.EnvDefaults
       Rapids.IniVal
-      Rapids.Mirror
       Rapids.Num
       Rapids.Offset
       Rapids.Pad
@@ -38,8 +37,6 @@ library
       Rapids.Reexports.Linear
       Rapids.Reexports.Waterfall
       Rapids.Revolution
-      Rapids.Rotate
-      Rapids.Scale
       Rapids.Section
       Rapids.Silhouette
       Rapids.Spiral
@@ -47,7 +44,15 @@ library
       Rapids.Sweep
       Rapids.ToPath
       Rapids.ToShape
-      Rapids.Translate
+      Rapids.Transforms
+      Rapids.Transforms.Mirror
+      Rapids.Transforms.Mirror.Go
+      Rapids.Transforms.Rotate
+      Rapids.Transforms.Rotate.Go
+      Rapids.Transforms.Scale
+      Rapids.Transforms.Scale.Go
+      Rapids.Transforms.Translate
+      Rapids.Transforms.Translate.Go
   other-modules:
       Paths_rapids
   autogen-modules:

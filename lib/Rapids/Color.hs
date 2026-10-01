@@ -81,6 +81,7 @@ module Rapids.Color
     colorAttrsMapReset,
     colorKeys,
     Transform3D (..),
+    Transforms3D (..),
     composeTransform3D,
     Transform2D (..),
     composeTransform2D,
@@ -270,10 +271,24 @@ colorKeys solid = do
 
 newtype Transform3D = Transform3D {runTransform3D :: forall a. (Transformable a) => a -> a}
 
+instance Semigroup Transform3D where (<>) = composeTransform3D
+
+instance Monoid Transform3D where mempty = Transform3D id
+
 composeTransform3D :: Transform3D -> Transform3D -> Transform3D
 composeTransform3D (Transform3D f) (Transform3D g) = Transform3D (f . g)
 
+data Transforms3D = Transforms3D (forall a. Transformable a => a -> a) (forall a. Transformable a => a -> a)
+
+instance Semigroup Transforms3D where Transforms3D a b <> Transforms3D x y = Transforms3D (a . x) (y . b)
+
+instance Monoid Transforms3D where mempty = Transforms3D id id
+
 newtype Transform2D = Transform2D {runTransform2D :: forall a. (Transformable2D a) => a -> a}
+
+instance Semigroup Transform2D where (<>) = composeTransform2D
+
+instance Monoid Transform2D where mempty = Transform2D id
 
 composeTransform2D :: Transform2D -> Transform2D -> Transform2D
 composeTransform2D (Transform2D f) (Transform2D g) = Transform2D (f . g)

@@ -43,7 +43,7 @@ module Rapids
     module Waterfall.Solids,
     frustum,
 
-    -- ** affine transforms #affine#
+    -- ** transforms #affine#
 
     -- | Each operation takes one or more arguments to specify the direction or amount, and multiple groups can be specified,
     -- so that @mirror ex ey@ is short for @mirror ex . mirror ey@
@@ -85,12 +85,26 @@ module Rapids
     --  'scale' 'scale2D' 'mirror' 'translate' 'translate2D' 'rotate' 'rotateDeg' only include the transformed Solid,
     --
     -- 'stack' 'center' 'left' 'right' only return the second (translated) Solid
-    module Rapids.Scale,
-    module Rapids.Mirror,
-
-    -- *** rigid body
-    module Rapids.Translate,
-    module Rapids.Rotate,
+    --
+    --
+    --
+    -- The following example shows two hexagonal holes symmetric about the x axis.
+    --
+    --
+    -- @cutHole :: Solid -> Solid@
+    -- @cutHole x = x - 'translate' 'ex' 5 hex@
+    -- @  where hex = 'pad' 1 ('unitPolygon' 6)@
+    --
+    -- @cutHole@ is a useful idea, but being a function, it limits what it's
+    -- callers can do with it. @cutMirroredHoles = _ cutHole@ can't access @hex@
+    -- and transform it to make two holes. It's possible to "move the workpiece
+    -- instead of the tool" here and 'Control.Lens.Iso.Iso' combines forward and
+    -- reverse transformations:
+    --
+    -- @'scale' 10 1 centeredCylinder '&' '_rotated' ez pi '%~' cutHole@ -- temporarily move the workpiece
+    --
+    -- @scale 10 1 centeredCylinder - 'rotated' ez pi (translate ex 5 hex)@ -- move the tool
+    module Rapids.Transforms,
     module Rapids.AABB.Align,
     axisAlignedBoundingBox,
     aabb,
@@ -126,7 +140,6 @@ import Rapids.Color.Query (colorQuery)
 import Rapids.ConvexHull
 import Rapids.EnvDefaults
 import Rapids.IniVal
-import Rapids.Mirror
 import Rapids.Num
 import Rapids.Offset
 import Rapids.Pad
@@ -136,8 +149,6 @@ import Rapids.Path.Project
 import Rapids.Path.CornerOp
 import Rapids.Reexports
 import Rapids.Revolution
-import Rapids.Rotate
-import Rapids.Scale
 import Rapids.Section
 import Rapids.Silhouette
 import Rapids.Spiral
@@ -145,7 +156,7 @@ import Rapids.Statistics
 import Rapids.ToPath
 import Rapids.ToShape
 import Rapids.Sweep
-import Rapids.Translate
+import Rapids.Transforms
 import System.Directory
 import System.FilePath
 import qualified Waterfall as W

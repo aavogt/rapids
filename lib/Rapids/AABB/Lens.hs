@@ -3,8 +3,7 @@ module Rapids.AABB.Lens where
 import Rapids.AABB
 import Rapids.Num ()
 import Rapids.Reexports
-import Rapids.Scale
-import Rapids.Translate
+import Rapids.Transforms
 import Data.Type.Equality (apply)
 import qualified Waterfall.Internal.NearZero as WNZ
 

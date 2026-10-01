@@ -1,7 +1,7 @@
 -- | 'scale', 'scaled', and the isos @_scaled@ and @_scaled'@
 -- accept one of: @v3@, @xyz@, @x y z@, @xy z@, @ex x@ (and @ey@, @ez@),
 -- and several groups of those can follow each other. The @2D@ versions are for 'Shape' and 'Path2D'.
-module Rapids.Scale where
+module Rapids.Transforms.Scale.Go where
 
 import Control.Lens hiding (prism)
 import Linear hiding (scaled)
@@ -9,45 +9,6 @@ import Rapids.Color
 import Waterfall
 import qualified Waterfall as W
 import qualified Waterfall.Internal.NearZero as WNZ
-
--- * interface
-
--- ** 3D
-
--- | Scale along one or more directions.
-scale :: (ScaleGo r t) => r
-scale = scaleGo (id :: t -> t) (propagateColor . W.scale) (propagateColor . W.uScale)
-
--- | 'scale' except it also returns the original,
--- which is only useful if a direction is negative
-scaled :: (Num t, ScaleGo r t) => r
-scaled = scaleGo (id :: t -> t) (\v x -> x + propagateColor (W.scale v) x) (\v x -> x + propagateColor (W.uScale v) x)
-
--- | @_scaled@ produces a type-changing 'Iso' from one or more axis/factor pairs.
-_scaled :: (Scaled'Go r t) => r
-_scaled = scaled'Go (Transform3D id) (Transform3D id)
-
--- | @_scaled'@ is the endomorphic, overloaded form of @_scaled@.
-_scaled' :: (ScaledOpticGo r t) => r
-_scaled' = scaledOpticGo True id id
-
--- ** 2D
-
--- | like 'scale' for 'Transformable2D'
-scale2D :: (Scale2DGo r t) => r
-scale2D = scale2DGo (id :: t -> t) W.scale2D W.uScale2D
-
--- | 'scale2D' except it also returns the original.
-scaled2D :: (Num t, Scale2DGo r t) => r
-scaled2D = scale2DGo (id :: t -> t) (\v x -> x + W.scale2D v x) (\v x -> x + W.uScale2D v x)
-
--- | @_scaled2D@ produces a type-changing 'Iso' from one or more axis/factor pairs.
-_scaled2D :: (Scaled2D'Go r t) => r
-_scaled2D = scaled2D'Go (Transform2D id) (Transform2D id)
-
--- | @_scaled2D'@ is the endomorphic, overloaded form of '_scaled2D'.
-_scaled2D' :: (Scaled2DGo r) => r
-_scaled2D' = scaled2DGo
 
 class (Transformable t) => Scaled'Go r t | r -> t where
   scaled'Go :: Transform3D -> Transform3D -> r
@@ -75,8 +36,6 @@ instance {-# OVERLAPPING #-} (v ~ V2, amount ~ Double, Scaled2D'Go r t) => Scale
         inverse = Transform2D (W.scale2D (1 / factors))
      in scaled2D'Go (composeTransform2D forward scaling) (composeTransform2D inverse backward)
 
--- * implementation
-
 class (PropagateColor t, Transformable t) => ScaleGo r t | r -> t where
   scaleGo :: (t -> t) -> (V3 Double -> t -> t) -> (Double -> t -> t) -> r
 
@@ -87,6 +46,9 @@ instance {-# INCOHERENT #-} (Transformable2D t) => Scale2DGo (t -> t) t where sc
 
 instance {-# INCOHERENT #-} (Num a, v ~ V2, amt ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (E v -> amt -> a -> a') t where
   scale2DGo acc f g (E e) amt a = scale2DGo (acc . f (1 & e .~ amt)) f g a
+
+instance {-# INCOHERENT #-} (x ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (V2 x -> a -> a') t where
+  scale2DGo acc f g xy a = scale2DGo (acc . f xy) f g a
 
 instance {-# OVERLAPPABLE #-} (x ~ Double, y ~ Double, Transformable2D a, a' ~ a, a ~ t) => Scale2DGo (x -> y -> a -> a') t where
   scale2DGo acc f g x y a = scale2DGo (acc . f (V2 x y)) f g a

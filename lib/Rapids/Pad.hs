@@ -7,12 +7,12 @@ import Rapids.Num ()
 import Rapids.Reexports
 import Rapids.ToPath
 import Rapids.ToShape
-import Rapids.Translate
+import Rapids.Transforms
 
 -- | pad is like freecad PartDesign::Pad. It sweeps a shape along a straight line,
 -- or (with @taperFrac@) lofts it to a 'uScale2D' copy of itself.
 class Pad a where
-  -- | The direction is @z@ (like 'Waterfall.prism'), @x y z@, or @v3@;
+  -- | The direction is @z@ (like 'Waterfall.Solids.prism'), @x y z@, or @v3@;
   -- the optional @taperFrac@ is the factor the far end is scaled by.
   -- The last argument is any 'ToShape' value:
   --
