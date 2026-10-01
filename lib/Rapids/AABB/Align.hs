@@ -20,8 +20,10 @@ import Data.Maybe
 import Rapids.Translate
 import Rapids.Num
 import Rapids.AABB
+import Rapids.AABB.Lens
 
--- ** alignment where the first argument isn't added to the result
+-- * interface
+-- ** alignment where the first solid isn't added to the result
 
 -- | @stack ex a b@ moves @b@ along the x axis so the left side of @b@ is coplanar with @a@'s right side.
 -- Only the moved @b@ is returned.
@@ -50,32 +52,22 @@ center (E el) a b = fromJust do
   let abMid = (a0+a1)/2 - (b0+b1)/2
   Just $ translate (abMid & el .~ 0) b
 
--- | @left ex a b@ aligns the left (lower x coordinate) sides of @a@ and @b@
--- by moving the one that's farther right leftwards.
--- The other axes work the same way, so @left ez a b@ aligns the bottoms.
+-- | @left ex a b = translate ex t b@ with @t@ such that the left aabb sides align.
 left :: E V3 -> Solid -> Solid -> Solid
 left (E el) a b = fromJust do
-  (a0, a1) <- axisAlignedBoundingBox a
-  (b0, b1) <- axisAlignedBoundingBox b
-  let aVal = a0 ^. el
-  let bVal = b0 ^. el
-  let val = min aVal bVal
-  Just $ translate (E el) (val - aVal) a + translate (E el) (val - bVal) b
+  aVal <- a ^? aabb . _Just . _1 . el
+  bVal <- b ^? aabb . _Just . _1 . el
+  Just $ translate (E el) (aVal - bVal) b
   -- one translate _ 0 should always be id, same for right
 
--- | @right ez a b@ aligns the right (higher x coordinate) sides of @a@ and @b@
--- by moving the one that's farther left rightwards.
--- The other axes work the same way, so @right ez a b@ aligns the tops.
+-- | @right ex a b = translate ex t b@ with @t@ such that the right aabb sides align.
 right :: E V3 -> Solid -> Solid -> Solid
 right (E el) a b = fromJust do
-  (a0, a1) <- axisAlignedBoundingBox a
-  (b0, b1) <- axisAlignedBoundingBox b
-  let aVal = a1 ^. el
-  let bVal = b1 ^. el
-  let val = max aVal bVal
-  Just $ translate (E el) (val - aVal) a + translate (E el) (val - bVal) b
+  aVal <- a ^? aabb . _Just . _2 . el
+  bVal <- b ^? aabb . _Just . _2 . el
+  Just $ translate (E el) (aVal - bVal) b
 
--- ** alignment where the first argument is added to the result
+-- ** alignment where the first solid is added to the result
 
 -- | @stacked ez a b = a + stack ez a b@
 --
