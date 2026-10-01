@@ -87,15 +87,6 @@ lefted el a b = a + left el a b
 righted :: E V3 -> Solid -> Solid -> Solid
 righted el a b = a + right el a b
 
--- Data.Semigroup.Min can't do this because it needs `instance Bounded Double`,
-data MinMaxSumCount = MinMaxSumCount !Double !Double !Double Int
-
-instance Semigroup MinMaxSumCount where
-  MinMaxSumCount a b c n <> MinMaxSumCount d e f m = MinMaxSumCount (min a d) (max b e) (c + f) (n+m)
-
-instance Monoid MinMaxSumCount where
-  mempty = MinMaxSumCount (1/0) (-(1/0)) 0 0
-
 -- | @distributed ez solids = unions (distribute ez solids)@
 distributed :: E V3 -> [Solid] -> Solid
 distributed e solids = unions (distribute e solids)
@@ -119,3 +110,14 @@ distribute (E el) solids = fromJust do
         & sortOn (^. _1 . _1)
         & mapAccumL g 0
         & snd ]
+
+-- * implementation detail
+
+-- Data.Semigroup.Min can't do this because it needs `instance Bounded Double`,
+data MinMaxSumCount = MinMaxSumCount !Double !Double !Double Int
+
+instance Semigroup MinMaxSumCount where
+  MinMaxSumCount a b c n <> MinMaxSumCount d e f m = MinMaxSumCount (min a d) (max b e) (c + f) (n+m)
+
+instance Monoid MinMaxSumCount where
+  mempty = MinMaxSumCount (1/0) (-(1/0)) 0 0
