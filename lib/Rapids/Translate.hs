@@ -1,3 +1,6 @@
+-- | 'translate', 'translated', and the isos @_translated@ and @_translated'@
+-- accept one of: @x y z@, @v3@, @ex x@ (and @ey@, @ez@),
+-- and several groups of those can follow each other. The @2D@ versions take @x y@, @(V2 x y)@ or @ex x@, @ey y@.
 module Rapids.Translate where
 
 import Control.Lens hiding (prism)
@@ -32,7 +35,7 @@ translated = translateGo (id :: t -> t) \v x -> x + W.translate v x
 _translated :: (Translated'Go r t) => r
 _translated = translated'Go (Transform3D id) (Transform3D id)
 
--- | @_translated'@ is the endomorphic, overloaded form of '_translated'.
+-- | @_translated'@ is the endomorphic, overloaded form of @_translated@.
 _translated' :: (TranslatedGo r t) => r
 _translated' = translatedGo id id
 

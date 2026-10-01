@@ -127,7 +127,7 @@ offsetPath amount join input = propagatePathEdgeColors leftColor input $
   } |]
     & ownPath
 
--- | Offset a planar @TopoDS_Face@
+-- | @offsetShape amount join shape@ offsets a planar @TopoDS_Face@, see 'offsetPath' for @join@
 offsetShape :: CDouble -> CInt -> Shape -> Shape
 offsetShape amount join input = propagateShapeColorsToShape input $ ownShape
     [Cpp.block| TopoDS_Shape* {
@@ -152,18 +152,18 @@ offsetShape amount join input = propagateShapeColorsToShape input $ ownShape
       }
     } |]
 
--- | @offsetPath join amount path2d@
+-- | @offsetPath2D amount join path2d@, see 'offsetPath'
 offsetPath2D :: CDouble -> CInt -> Path2D -> Path2D
 offsetPath2D = coerce offsetPath
 
--- | @offsetPathArc amount path = offsetPath 0 amount path@
+-- | @offsetPathArc amount path = offsetPath amount 0 path@
 offsetPathArc :: CDouble -> Path -> Path
 offsetPathArc = flip offsetPath 0
 
--- | @offsetPath2DArc amount path2d = offsetPath2D 0 amount path2d@
+-- | @offsetPath2DArc amount path2d = offsetPath2D amount 0 path2d@
 offsetPath2DArc :: CDouble -> Path2D -> Path2D
 offsetPath2DArc = flip offsetPath2D 0
 
--- | @offsetShapeArc amount shape = offsetShape 0 amount shape@
+-- | @offsetShapeArc amount shape = offsetShape amount 0 shape@
 offsetShapeArc :: CDouble -> Shape -> Shape
 offsetShapeArc = flip offsetShape 0

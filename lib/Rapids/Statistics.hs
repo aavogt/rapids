@@ -1,4 +1,5 @@
 -- TODO https://github.com/fpco/inline-c/tree/master/inline-c#vectors instead?
+-- | volume, center of mass and moment of inertia of a 'Solid' that may be a compound of many solids
 module Rapids.Statistics (
   -- * merge compounds
   volume,

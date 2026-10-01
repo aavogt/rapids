@@ -1,5 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
+-- | project a 'Solid', 'Shape' or ['Path2D'] into the XY plane
 module Rapids.Silhouette
   ( Silhouette(silhouette),
     silhouetteSolid,
@@ -54,7 +55,7 @@ Cpp.include "<gp_Pnt.hxx>"
 
 
 class Silhouette a where
-  -- | @silhouette solid|shape\[Path2D]@ projects the argument into XY plane
+  -- | @silhouette Solid|Shape|[Path2D]@ projects the argument into the XY plane
   silhouette :: a -> Shape
 
 instance Silhouette Solid where silhouette = silhouetteSolid
@@ -245,7 +246,7 @@ silhouetteShape shape = ownShape [Cpp.block| TopoDS_Shape* {
 
 -- | Build a permissive shape from paths, preserving open and disconnected edges.
 --
--- Unlike 'toShape', this does not try to make faces, so it accepts edge drawings
+-- Unlike @toShape@, this does not try to make faces, so it accepts edge drawings
 -- such as SVG output containing many independent path fragments.
 silhouettePaths :: [Path2D] -> Shape
 silhouettePaths paths =

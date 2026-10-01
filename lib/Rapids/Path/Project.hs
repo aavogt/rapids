@@ -37,9 +37,9 @@ Cpp.include "<GeomProjLib.hxx>"
 Cpp.include "<Geom_Plane.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 
--- | i = projectPath j
+-- | @path2d = projectPath path@
 --
--- make a 3D path 2D by removing z components used by 'toShape'
+-- make a 3D path 2D by removing z components. Used by @toShape@
 projectPath :: Path -> Path2D
 projectPath (Path (SinglePointRawPath v)) = Path2D (SinglePointRawPath (v & _z .~ 0))
 projectPath (Path EmptyRawPath) = Path2D EmptyRawPath

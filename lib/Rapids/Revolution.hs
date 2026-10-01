@@ -1,3 +1,4 @@
+-- | revolve a 'ToShape' around an axis to make a 'Solid'
 module Rapids.Revolution where
 
 import Data.Acquire (mkAcquire)

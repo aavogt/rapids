@@ -1,3 +1,7 @@
+-- | arrange a pair of solids relative to each other using their 'axisAlignedBoundingBox',
+-- like Inkscape's <https://inkscape-manuals.readthedocs.io/en/latest/align-and-distribute.html Align and Distribute>.
+--
+-- The direction is "Linear"'s @ex ey ez@.
 module Rapids.AABB.Align where
 
 import Control.Monad.IO.Class (liftIO)
@@ -17,43 +21,15 @@ import Rapids.Translate
 import Rapids.Num
 import Rapids.AABB
 
--- | > a `above` b
---
--- places the bottom of `a` at the top of `b`
---
--- doesn't fit with the rest the convention is backwards so will be flipped and called below?
--- I'm not sure I covered all the options, because opposite side and same side have two orderings,
--- you could swap `a` and `b` in 3 places. but it seems that stack center left right are enough.
-a `above` b = fromJust do
-   (_, V3 _ _ b2) <- axisAlignedBoundingBox b
-   (V3 _ _ a1, _) <- axisAlignedBoundingBox a
-   let dz = b2 - a1
-   Just $ translate ez dz a + b
-
-
--- | @stack ex a b@ moves `b` along the x axis so the left side is coplanar with `a`'s right side.
---
--- > above = flip (stack ez)
-stacked el a b = a + stack el a b
-
--- | @center ex a b@ moves b so that the lines connecting opposite axisAlignedBoundingBox faces
--- are colllinear.
-centered el a b = a + center el a b
-
--- | > left ex a b
---
--- aligns the left side of `a` and `b` (along the x axis)
--- by moving the one that's farther right leftwards
-lefted el a b = a + left el a b
-
--- | > right ez a b
---
--- aligns the right (top) side of `a` and `b` (along the z axis)
--- by moving the one that's farther down upwards
-righted el a b = a + right el a b
-
 -- ** alignment where the first argument isn't added to the result
 
+-- | @stack ex a b@ moves @b@ along the x axis so the left side of @b@ is coplanar with @a@'s right side.
+-- Only the moved @b@ is returned.
+--
+-- > stack ez a b == translate ez z b
+--
+-- where @z@ makes the bottom of @b@ coplanar with the top of @a@.
+stack :: E V3 -> Solid -> Solid -> Solid
 stack (E el) a b = fromJust do
   (a0, a1) <- axisAlignedBoundingBox a
   (b0, b1) <- axisAlignedBoundingBox b
@@ -61,12 +37,22 @@ stack (E el) a b = fromJust do
   let bVal = b0 ^. el
   Just $ translate (E el) (aVal - bVal) b
 
+-- | @center ez a b@ moves @b@ so that the lines connecting opposite 'axisAlignedBoundingBox' faces
+-- are collinear. Only the moved @b@ is returned.
+--
+-- > center ez a b == translate (V3 x y 0) b
+--
+-- where @x@ @y@ make the centers of the z-faces collinear.
+center :: E V3 -> Solid -> Solid -> Solid
 center (E el) a b = fromJust do
   (a0, a1) <- axisAlignedBoundingBox a
   (b0, b1) <- axisAlignedBoundingBox b
   let abMid = (a0+a1)/2 - (b0+b1)/2
   Just $ translate (abMid & el .~ 0) b
 
+-- | @left ex a b@ aligns the left (lower x coordinate) sides of @a@ and @b@
+-- by moving the one that's farther right leftwards.
+-- The other axes work the same way, so @left ez a b@ aligns the bottoms.
 left :: E V3 -> Solid -> Solid -> Solid
 left (E el) a b = fromJust do
   (a0, a1) <- axisAlignedBoundingBox a
@@ -77,6 +63,9 @@ left (E el) a b = fromJust do
   Just $ translate (E el) (val - aVal) a + translate (E el) (val - bVal) b
   -- one translate _ 0 should always be id, same for right
 
+-- | @right ez a b@ aligns the right (higher x coordinate) sides of @a@ and @b@
+-- by moving the one that's farther left rightwards.
+-- The other axes work the same way, so @right ez a b@ aligns the tops.
 right :: E V3 -> Solid -> Solid -> Solid
 right (E el) a b = fromJust do
   (a0, a1) <- axisAlignedBoundingBox a
@@ -85,6 +74,38 @@ right (E el) a b = fromJust do
   let bVal = b1 ^. el
   let val = max aVal bVal
   Just $ translate (E el) (val - aVal) a + translate (E el) (val - bVal) b
+
+-- ** alignment where the first argument is added to the result
+
+-- | @stacked ez a b = a + stack ez a b@
+--
+-- the analogue of @mirrored@ for 'stack'
+stacked :: E V3 -> Solid -> Solid -> Solid
+stacked el a b = a + stack el a b
+
+-- | @centered ez a b = a + center ez a b@
+centered :: E V3 -> Solid -> Solid -> Solid
+centered el a b = a + center el a b
+
+-- | > a `above` b
+--
+-- places the bottom of @a@ at the top of @b@ and adds @b@.
+-- The convention is backwards compared to 'stacked', which would be @flip (stacked ez)@
+-- and 'above' may be flipped and called below.
+above :: Solid -> Solid -> Solid
+a `above` b = fromJust do
+   (_, V3 _ _ b2) <- axisAlignedBoundingBox b
+   (V3 _ _ a1, _) <- axisAlignedBoundingBox a
+   let dz = b2 - a1
+   Just $ translate ez dz a + b
+
+-- | @lefted ex a b = a + left ex a b@
+lefted :: E V3 -> Solid -> Solid -> Solid
+lefted el a b = a + left el a b
+
+-- | @righted ex a b = a + right ex a b@
+righted :: E V3 -> Solid -> Solid -> Solid
+righted el a b = a + right el a b
 
 -- Data.Semigroup.Min can't do this because it needs `instance Bounded Double`,
 data MinMaxSumCount = MinMaxSumCount !Double !Double !Double Int
@@ -95,9 +116,13 @@ instance Semigroup MinMaxSumCount where
 instance Monoid MinMaxSumCount where
   mempty = MinMaxSumCount (1/0) (-(1/0)) 0 0
 
+-- | @distributed ez solids = unions (distribute ez solids)@
 distributed :: E V3 -> [Solid] -> Solid
 distributed e solids = unions (distribute e solids)
 
+-- | @[sa,sb,sc] = distribute ez [s1,s2,s3]@: @sa@ is the lowest, @sb@ is the middle, @sc@ is the highest.
+-- The middle elements are translated along z for equal gaps (or overlaps).
+-- Note the result is sorted along the axis, not in the order of the input list.
 distribute :: E V3 -> [Solid] -> [Solid]
 distribute _ [] = []
 distribute _ [s] = [s]

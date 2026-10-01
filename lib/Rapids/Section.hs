@@ -1,4 +1,5 @@
 {-# LANGUAGE QuasiQuotes #-}
+-- | slice a 'Solid' with the XY plane
 module Rapids.Section where
 
 import Control.Monad

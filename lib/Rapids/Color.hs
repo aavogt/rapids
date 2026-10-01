@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
--- | propagate face colors
+-- | propagate face colors through operations on a 'Solid'
 module Rapids.Color
   ( mkStepWriterColor,
     writeSTEPColor,
@@ -237,9 +237,11 @@ near c0 = go (S.singleton (0, V3 0 0 0))
                   : go (foldr (\o -> S.insert (quadrance o, o)) rest (kids d))
              else go rest
 
+-- | @setColor (V3 r g b)@ sets the color of every face. @r g b@ are either 0 to 1 or 0 to 255
 setColor :: V3 CDouble -> Solid -> Solid
 setColor color = setColors (repeat color)
 
+-- | like 'setColor', but face @i@ gets the color @i@ of the list. Faces beyond the end of the list are left alone.
 setColors :: [V3 CDouble] -> Solid -> Solid
 setColors colors (Solid raw) = unsafeFromAcquire do
   solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
@@ -292,12 +294,13 @@ instance (Transformable2D a) => Transformable2D [a] where
   translate2D vector = fmap (translate2D vector)
   mirror2D normal = fmap (mirror2D normal)
 
+-- | used by the transformations (@translate@, @rotate@ ...) to keep the face colors of a 'Solid'
 class (Transformable a) => PropagateColor a where
   propagateColor :: (a -> a) -> (a -> a)
 
 instance {-# OVERLAPS #-} (Transformable a) => PropagateColor a where propagateColor = id
 
--- | the output 'faceKeys' should get the same color as the input 'faceKeys'
+-- | the output @faceKeys@ should get the same color as the input @faceKeys@
 instance PropagateColor Solid where
   propagateColor f solid = unsafePerformIO do
     let !solid' = f solid
@@ -508,6 +511,7 @@ withModifiedFaces_ history solid kFun =
     }
   }|]
 
+-- | like 'Rapids.mkStepWriter', but each file is written with 'writeSTEPColor'
 mkStepWriterColor :: IO (Solid -> IO FilePath)
 mkStepWriterColor = do
   count <- newIORef Nothing
@@ -518,6 +522,8 @@ mkStepWriterColor = do
     writeSTEPColor out solid
     return out
 
+-- | @writeSTEPColor path solid@ is like @Waterfall.writeSTEP@ but also writes face colors and
+-- the source location notes left by 'tagLoc' and the color names (@$red@ ...)
 writeSTEPColor :: FilePath -> Solid -> IO ()
 writeSTEPColor out solid = do
   doc <- newXCAFDoc
@@ -529,11 +535,13 @@ writeSTEPColor out solid = do
   writeXCAFToSTEP out doc
 
 -- data Operation = Common | Fuse | Cut | Cut21 | Section | Unknown
+-- | n-ary boolean operations that propagate face colors from the inputs to the result
 intersections, unions, differences :: [Solid] -> Solid
 intersections = unsafePerformIO . withBooleans2 Common
 unions = unsafePerformIO . withBooleans2 Fuse
 differences = unsafePerformIO . withBooleans2 Cut
 
+-- | binary boolean operations that propagate face colors, used by the @Num Solid@ instance (@*@, @+@, @-@)
 intersection, union, difference :: Solid -> Solid -> Solid
 intersection a b = intersections [a, b]
 union a b = unions [a, b]
@@ -735,11 +743,15 @@ mkTaggedColors color = [|$tagLoc . setColors (fmap ((/ 255) . fromIntegral) <$> 
 deriving instance Lift CDouble
 
 {- ORMOLU_DISABLE -}
+-- | A named color, spliced with @$@ (needs @TemplateHaskell@), for example @$red :: 'Solid' -> 'Solid'@
+-- sets the color of all faces and tags them with the source location (see 'tagLoc' and "Rapids.Color.Query")
 lightgray, gray, darkgray, yellow, gold, orange, pink, red,
   maroon, green, lime, darkgreen, skyblue, blue, darkblue,
   purple, violet, darkpurple, beige, brown, darkbrown, white,
-  black, magenta, raywhite,
-  lightgrays, grays, darkgrays, yellows, golds, oranges, pinks, reds,
+  black, magenta, raywhite :: ExpQ
+-- | The plural of a named color gives each face a slightly different shade of that color,
+-- so that "Rapids.Color.Query" can tell the faces apart. For example @$reds :: 'Solid' -> 'Solid'@.
+lightgrays, grays, darkgrays, yellows, golds, oranges, pinks, reds,
   maroons, greens, limes, darkgreens, skyblues, blues, darkblues,
   purples, violets, darkpurples, beiges, browns, darkbrowns, whites,
   blacks, magentas, raywhites :: ExpQ

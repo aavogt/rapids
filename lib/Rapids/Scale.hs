@@ -1,3 +1,6 @@
+-- | 'scale', 'scaled', and the isos @_scaled@ and @_scaled'@
+-- accept one of: @v3@, @xyz@, @x y z@, @xy z@, @ex x@ (and @ey@, @ez@),
+-- and several groups of those can follow each other. The @2D@ versions are for 'Shape' and 'Path2D'.
 module Rapids.Scale where
 
 import Control.Lens hiding (prism)
@@ -24,12 +27,13 @@ scaled = scaleGo (id :: t -> t) (\v x -> x + propagateColor (W.scale v) x) (\v x
 _scaled :: (Scaled'Go r t) => r
 _scaled = scaled'Go (Transform3D id) (Transform3D id)
 
--- | @_scaled'@ is the endomorphic, overloaded form of '_scaled'.
+-- | @_scaled'@ is the endomorphic, overloaded form of @_scaled@.
 _scaled' :: (ScaledOpticGo r t) => r
 _scaled' = scaledOpticGo True id id
 
 -- ** 2D
 
+-- | like 'scale' for 'Transformable2D'
 scale2D :: (Scale2DGo r t) => r
 scale2D = scale2DGo (id :: t -> t) W.scale2D W.uScale2D
 

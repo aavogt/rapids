@@ -45,7 +45,7 @@ Cpp.include "<TopoDS_Vertex.hxx>"
 Cpp.include "<TopoDS_Wire.hxx>"
 Cpp.include "<gp_Pnt.hxx>"
 
--- | @sweepRuled (\\ _shapeVertex -> path) shape = 'sweep' path shape@ at least for shapes with straight edges.
+-- | @sweepRuled (\\ _shapeVertex -> path) shape = sweep path shape@ at least for shapes with straight edges.
 --
 -- sweepRuled creates ruled surfaces between adjacent paths.
 -- The shape and the resulting end shape are sewn to those

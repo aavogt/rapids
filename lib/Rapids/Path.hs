@@ -2,7 +2,7 @@ module Rapids.Path where
 
 import Rapids.Reexports
 
--- | rectangle centered at the origin. These have equivalent geometry:
+-- | @rectangle w h@ has one corner at the origin and the opposite corner at (w, h). These have equivalent geometry:
 --
 -- > rectangle w h
 -- > section (box (V3 w h 1))

@@ -1,3 +1,6 @@
+-- | 'rotate', 'rotated', 'rotateDeg', 'rotatedDeg' and the isos @_rotated@ and @_rotated'@
+-- accept one of: @x y z radians@, @v3 radians@, @q@, @ex radians@ (and @ey@, @ez@),
+-- and several groups of those can follow each other: @rotate ex x ey y@ is @rotate ex x . rotate ey y@
 module Rapids.Rotate where
 
 import Control.Lens
@@ -17,6 +20,7 @@ import qualified Waterfall as W
 rotate :: (RotateGo r t) => r
 rotate = rotateGo id \axis angle x -> W.rotate axis (mod2pi angle) x
 
+-- | 'rotate' except it also returns the original
 rotated :: (Num t, RotateGo r t) => r
 rotated = rotateGo id \axis angle x -> x + W.rotate axis (mod2pi angle) x
 
@@ -38,7 +42,7 @@ rotatedDeg = rotateGo id \axis angle x -> x + W.rotate axis (fromDeg angle) x
 _rotated :: (Rotated'Go r t) => r
 _rotated = rotated'Go (Transform3D id) (Transform3D id)
 
--- | @_rotated'@ is the endomorphic, overloaded form of '_rotated'.
+-- | @_rotated'@ is the endomorphic, overloaded form of @_rotated@.
 _rotated' :: (RotatedGo r t) => r
 _rotated' = rotatedGo id id
 

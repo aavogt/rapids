@@ -3,8 +3,17 @@
 -- | cascade, waterfall, rapids
 -- simplify waterfall-cad expressions by complicating the types and type errors
 --
--- affine transforms "Rapids#affine" and 'Pad' take a direction.
--- The direction is specified as either "Linear"'s 'ex' 'ey' 'ez', as a 'V3', one or more 'Double's
+-- <#affine affine transforms> and 'pad' take a direction.
+-- The direction is specified as either "Linear"'s 'ex' 'ey' 'ez', as a 'V3', one or more 'Double's.
+--
+-- Many functions are overloaded on their number and type of arguments. In the documentation
+-- the following names are used for the arguments, and angle brackets (@\<x\>@) mean an argument is optional:
+--
+--   * @x y z xy xyz taperFrac taperSlope radians turns amount@ are 'Double's
+--   * @v3@ is a @'V3' 'Double'@, @q@ is a @'Quaternion' 'Double'@
+--   * @path@ is a 'ToPath' value: @[V2 Double]@, @[V3 Double]@, 'Path2D' or 'Path'
+--   * @shape@ is a 'ToShape' value: @[V2 Double]@, 'Path2D', 'Shape' or 'Path', or lists of them
+--   * @solid@ is a 'Solid'
 module Rapids
   ( -- * IO
     mkStepWriterColor,
@@ -45,7 +54,7 @@ module Rapids
     --  'scaled' 'scaled2D' 'mirrored' 'translated' 'translated2D' 'rotated' 'rotatedDeg' include the original Solid,
     -- 'above' 'stacked' 'centered' 'lefted' 'righted' include the left Solid
     --
-    --  'scale' 'scaled2D' 'mirror' 'translate' 'translate2D' 'rotate' 'rotateDeg' only include the transformed Solid,
+    --  'scale' 'scale2D' 'mirror' 'translate' 'translate2D' 'rotate' 'rotateDeg' only include the transformed Solid,
     -- 'stack' 'center' 'left' 'right' only move the right Solid
     module Rapids.Scale,
     module Rapids.Mirror,
@@ -60,12 +69,11 @@ module Rapids
     -- ** others
     revolution,
     unitSpiral,
-    offset,
     FilletChamfer(..),
 
     -- * consume 3d
     module Rapids.Statistics,
-    -- $also "Rapids.Section"
+    -- | see also "Rapids.Section"
     colorQuery,
 
     -- * implementation details
@@ -120,7 +128,7 @@ import Waterfall.Internal.Path (Path(..))
 import Waterfall.TwoD.Internal.Path2D (Path2D(..))
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
--- writes solid1 to $(basename `pwd`).step and solid2 to $(basename `pwd`)0.step
+-- writes solid1 to @$(basename $PWD).step@ and solid2 to @$(basename $PWD)0.step@
 --
 -- so the template needs less renaming
 mkStepWriter :: IO (Solid -> IO FilePath)
@@ -133,15 +141,19 @@ mkStepWriter = do
     writeSTEP out solid
     return out
 
--- | `fustrum d1 d2 h` has a circle of d2 at z=h, and another circle of d1 at z=0
+-- | @fustrum d1 d2 h@ has a circle of diameter @d2@ at z=@h@, and another circle of diameter @d1@ at z=0
+fustrum :: Double -> Double -> Double -> Solid
 fustrum d1 d2 h = loft [circle d1, translate ez h (circle d2)]
 
 -- | 'loft2' does linear interpolation between vertices, whereas 'loft' introduces curvature.
+loft2 :: [Path] -> Solid
 loft2 [x, y] = propagatePathColors x (loft [x, y])
 loft2 (x : y : xs) = propagatePathColors x (loft [x, y]) + loft2 (y : xs)
 loft2 [] = mempty
 
--- | > fillet, chamfer :: Double -> solid|path|path2d -> solid|path|path2d
+-- | @fillet r@ rounds and @chamfer r@ cuts the edges (of a 'Solid') or corners (of a 'Path', 'Path2D' or 'Shape') by @r@
+--
+-- > fillet, chamfer :: Double -> solid|path|path2d|shape -> solid|path|path2d|shape
 class FilletChamfer a where
   fillet :: Double -> a -> a
   chamfer :: Double -> a -> a

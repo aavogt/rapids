@@ -1,3 +1,4 @@
+-- | convex hull of points using qhull
 module Rapids.ConvexHull where
 
 import Data.Acquire

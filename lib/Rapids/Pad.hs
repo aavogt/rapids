@@ -9,17 +9,17 @@ import Rapids.ToPath
 import Rapids.ToShape
 import Rapids.Translate
 
--- | pad is like freecad PartDesign::Pad. It sweeps a shape, or lofts a uScale2D version
+-- | pad is like freecad PartDesign::Pad. It sweeps a shape along a straight line,
+-- or (with @taperFrac@) lofts it to a 'uScale2D' copy of itself.
 class Pad a where
-  pad :: a
-  -- ^ pad expressions of type 'ToShape' s => s -> 'Solid'
+  -- | The direction is @z@ (like 'Waterfall.prism'), @x y z@, or @v3@;
+  -- the optional @taperFrac@ is the factor the far end is scaled by.
+  -- The last argument is any 'ToShape' value:
   --
-  -- > pad z = Waterfall.prism
-  -- > pad z taperFrac
-  -- > pad x y z
-  -- > pad x y z taperFrac
-  -- > pad v3
-  -- > pad v3 taperFrac
+  -- > pad z <taperFrac> shape
+  -- > pad x y z <taperFrac> shape
+  -- > pad v3 <taperFrac> shape
+  pad :: a
 
 instance {-# OVERLAPS #-} (Double ~ double, ToShape shape, Solid ~ solid) => Pad (double -> shape -> solid) where
   pad z shape =
@@ -46,11 +46,12 @@ instance {-# INCOHERENT #-} (Double ~ x, Double ~ z, Double ~ y, Double ~ taperF
           let p = translate x y z (fromPath2D (uScale2D taperFrac q))
       ]
 
--- | @sweep path shape@
+-- | @sweep path shape@ sweeps a 'ToShape' along a 'ToPath'.
 --
 -- > sweep [0, V3 0 0 1e-3, V3 (-2) 0 (h / 2), V3 0 0 h] (rectangle 3 4)
 --
 -- the first segment 1e-3 fixes the bottom face orientation
+sweep :: (ToPath path, ToShape shape) => path -> shape -> Solid
 sweep path shape =
   let sh = toShape shape
    in propagateShapeColors sh (W.sweep (toPath path) sh)

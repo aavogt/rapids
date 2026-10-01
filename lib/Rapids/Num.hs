@@ -1,3 +1,5 @@
+-- | Num instances for 'Path', 'Path2D', 'Solid' and 'Shape' so that @+@ @-@ @*@ are short for
+-- union, difference and intersection (see @Waterfall.Booleans@)
 module Rapids.Num where
 
 import Data.Maybe
@@ -10,7 +12,7 @@ import Waterfall (Path, Path2D, Solid, Shape, unitSquare)
 import qualified Waterfall as W
 import Rapids.Color
 
--- | needed for `instance Mirrored (_ -> Path -> Path)`
+-- | @+@ is '(<>)'. The other methods are errors. Needed by @mirrored@ (which adds the original) on a 'Path'
 instance Num Path where
   (+) = (<>)
   (-) = error "Num Path missing -"
@@ -19,7 +21,7 @@ instance Num Path where
   signum = error "Num Path missing signum"
   abs = error "Num Path missing abs"
 
--- | needed for `instance Mirrored (_ -> Path -> Path)`
+-- | @+@ is '(<>)'. The other methods are errors. Needed by 'Rapids.Mirror.mirrored' (which adds the original) on a 'Path2D'
 instance Num Path2D where
   (+) = (<>)
   (-) = error "Num Path2D missing -"
@@ -38,12 +40,12 @@ instance Num Solid where
   negate = W.complement
   fromInteger n = scale (fromInteger n) W.unitCube
 
-  -- \| reflect if the 'centerOfMass' is behind the plane centered at the origin with normal (1,1,1)
+  -- | reflect if the 'centerOfMass' is behind the plane centered at the origin with normal (1,1,1)
   abs x
     | sum (centerOfMass x) < 0 = mirror (1 :: V3 Double) x
     | otherwise = x
 
-  -- \| `abs . signum = signum . abs`
+  -- | `abs . signum = signum . abs`
   -- violated because the aabb center of mass can be on the other side of the plane.
   -- consider a solid that's a big sphere at (-1, 0,0) and a small sphere at 2,0,0
   -- abs . signum will not mirror

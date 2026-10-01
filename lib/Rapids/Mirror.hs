@@ -1,4 +1,7 @@
 {- HLINT ignore "Eta reduce" -}
+-- | 'mirror', 'mirrored', and the isos @_mirrored@ and @_mirrored'@
+-- accept one of: @v3@, @x y z@, @ex@ (and @ey@, @ez@).
+-- Several groups of those can follow each other.
 module Rapids.Mirror where
 
 import Control.Lens hiding (prism)
@@ -26,7 +29,7 @@ mirrored = mirrorGo id (\v x -> x + propagateColor (W.mirror v) x)
 _mirrored :: (Mirrored'Go r t) => r
 _mirrored = mirrored'Go (Transform3D id) (Transform3D id)
 
--- | @_mirrored'@ is the endomorphic, overloaded form of '_mirrored'.
+-- | @_mirrored'@ is the endomorphic, overloaded form of @_mirrored@.
 _mirrored' :: (MirroredGo r t) => r
 _mirrored' = mirroredOpticGo (id :: t -> t) (id :: t -> t)
 

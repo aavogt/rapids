@@ -1,3 +1,4 @@
+-- | axis aligned bounding box of a 'Solid'
 module Rapids.AABB where
 
 import Control.Monad.IO.Class (liftIO)

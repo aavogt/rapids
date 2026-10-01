@@ -243,7 +243,7 @@ instance (KnownSymbol value) => IsLabel value (Solid -> V3 Double) where
 -- | colorQuery finds paths or vertices given face colors
 --
 -- @aavogt/OCCT_XCAF_FacePicker@'s shift-left-click on a vertex whose faces
--- were colored using 'blues' etc. (ie. @main = writeSTEPColor "circle.step" ($blues solid)@)
+-- were colored using @$blues@ etc. (ie. @main = writeSTEPColor "circle.step" ($blues solid)@)
 -- will print a line like the following:
 --
 -- >circle.step:0:1:1:1:v45 snap:3.9,-1.0,1 ... [colorQuery|0176f20078ee0176f00076f20078f1|]

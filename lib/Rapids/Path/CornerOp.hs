@@ -1,3 +1,4 @@
+-- | fillet and chamfer the corners of a 'Path'
 module Rapids.Path.CornerOp where
 
 import Control.Exception (bracket)
@@ -33,12 +34,19 @@ Cpp.include "<algorithm>"
 Cpp.include "<cmath>"
 Cpp.include "<vector>"
 
+-- | @filletPath r path@ rounds every corner of the path with radius @r@. Colors come from the left edge, see 'filletPathWithColor'.
+filletPath :: Double -> Path -> Path
 filletPath r = filletPathWithColor leftColor r
+
+-- | @chamferPath r path@ cuts every corner of the path with distance @r@. Colors come from the left edge, see 'chamferPathWithColor'.
+chamferPath :: Double -> Path -> Path
 chamferPath r = chamferPathWithColor leftColor r
 
+-- | like 'filletPath' with a choice of how the edge colors are propagated
 filletPathWithColor :: OpC -> Double -> Path -> Path
 filletPathWithColor policy r = applyOpWithColor policy (\_ -> (1, r))
 
+-- | like 'chamferPath' with a choice of how the edge colors are propagated
 chamferPathWithColor :: OpC -> Double -> Path -> Path
 chamferPathWithColor policy r = applyOpWithColor policy (\_ -> (0, r))
 
@@ -46,6 +54,7 @@ chamferPathWithColor policy r = applyOpWithColor policy (\_ -> (0, r))
 applyOp :: ((CInt, Double, Double) -> (CInt, Double)) -> Path -> Path
 applyOp = applyOpWithColor leftColor
 
+-- | like 'applyOp' with a choice of how the edge colors are propagated
 applyOpWithColor :: OpC -> ((CInt, Double, Double) -> (CInt, Double)) -> Path -> Path
 applyOpWithColor policy f path =
   let output = case toCornerOpF f of

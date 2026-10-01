@@ -12,10 +12,12 @@ import Rapids.ToPath
 import Waterfall
 import Rapids.ToShape
 
+-- | the vertices of a helix with radius 1 and pitch 1
 class SpiralPath a where
+  -- | optional arguments are in angle brackets
+  --
+  -- > unitSpiralPath turns <taperSlope>
   unitSpiralPath :: a
-  -- ^
-  -- @unitSpiralPath turns <taperSlope>@
 
 instance {-# OVERLAPS #-} (turns ~ Double, taperSlope ~ Double, path ~ [V3 Double]) => SpiralPath (turns -> taperSlope -> path) where
   unitSpiralPath turns taperSlope =
@@ -28,6 +30,7 @@ instance {-# OVERLAPS #-} (turns ~ Double, taperSlope ~ Double, path ~ [V3 Doubl
     where
       arcsPerHalfTurn = 4
 
+unitSpiralPoints :: Floating a => a -> a -> V3 a
 unitSpiralPoints taperSlope th = V3 ((1 - taperSlope * z) * sin th) ((1 - taperSlope * z) * cos th) z
   where
     z = th / 2 / pi
@@ -36,7 +39,13 @@ instance (turns ~ Double, path ~ [V3 Double]) => SpiralPath (turns -> path) wher
   unitSpiralPath turns = unitSpiralPath turns 0
 
 class UnitSpiral a where
-  -- | r=1, pitch=1
+  -- | follow a helix with radius 1 and pitch 1 for @turns@ turns with a shape (any 'ToShape').
+  -- With @taperSlope@ the radius decreases by that much per turn.
+  -- Optional arguments are in angle brackets:
+  --
+  -- > unitSpiral turns <taperSlope> shape
+  --
+  -- To get a different radius and pitch,
   --
   -- > scale r pitch $ unitSpiral turns taperSlope $ rectangle w h
   unitSpiral :: Double -> a

@@ -2,6 +2,7 @@
 
 {- HLINT ignore "Eta reduce" -}
 
+-- | 'offset' grows (positive amount) or shrinks (negative amount) 'Solid', 'Shape', 'Path' and 'Path2D'
 module Rapids.Offset where
 
 import Control.Monad.IO.Class (liftIO)
@@ -49,7 +50,42 @@ Cpp.include "<TopoDS.hxx>"
 Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 
--- | Offset every solid component and retain a compound when there are many.
+-- | 1e-6 tolerance, see 'offsetSolidWithTolerance'
+offsetSolid :: CDouble -> CInt -> Solid -> Solid
+offsetSolid = offsetSolidWithTolerance 1e-6
+
+class Offset a where
+  -- | @join@ is optional (default 0) and selects how corners are treated
+  -- (see <https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html GeomAbs_JoinType>):
+  --
+  -- > offset amount <join> solid|shape|path|path2d
+  --
+  -- > offset amount solid   -- round corners
+  -- > offset amount 0 solid -- round corners (Arc)
+  -- > offset amount 1 solid -- Tangent
+  -- > offset amount 2 solid -- sharp corners (Intersection)
+  offset :: Double -> a
+
+-- | the default is @join@ 0, round corners
+instance {-# INCOHERENT #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
+  offset amount solid = offsetJoin (coerce amount) 0 solid
+
+-- | an explicit @join@ of 0, 1 or 2
+instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where offset amount = offsetJoin (coerce amount)
+
+-- | @offsetJoin amount join@, used to define 'offset'. @join@ is 0 (Arc), 1 (Tangent) or 2 (Intersection)
+class OffsetJoin a where offsetJoin :: CDouble -> CInt -> a -> a
+
+instance OffsetJoin Solid where offsetJoin = offsetSolid
+
+instance OffsetJoin Shape where offsetJoin = offsetShape
+
+instance OffsetJoin Path where offsetJoin = offsetPath
+
+instance OffsetJoin Path2D where offsetJoin = offsetPath2D
+
+-- | @offsetSolidWithTolerance tolerance amount join solid@ offsets every solid component and retains a compound when there are many.
+offsetSolidWithTolerance :: CDouble -> CDouble -> CInt -> Solid -> Solid
 offsetSolidWithTolerance tolerance value join solid
   | coerce nearZero value = solid
   | otherwise =
@@ -111,33 +147,3 @@ offsetSolidWithTolerance tolerance value join solid
   }|]
         & ownSolid
         & propagateSolidColors solid
-
-offsetSolid :: CDouble -> CInt -> Solid -> Solid
-offsetSolid = offsetSolidWithTolerance 1e-6
-
-class Offset a where
-  -- |
-  -- > offset amount <join> solid|shape|path|path2d
-  --
-  -- > offset amount solid   -- round corners
-  -- > offset amount 1 solid -- round corners
-  -- > offset amount 0 solid -- sharp corners
-  offset :: Double -> a
-
--- | sharp corners by default
-instance {-# INCOHERENT #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
-  offset amount solid = offsetJoin (coerce amount) 0 solid
-
--- > offset amount 1 -- rounded
-instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where offset amount = offsetJoin (coerce amount)
-
--- | used to define 'offset'
-class OffsetJoin a where offsetJoin :: CDouble -> CInt -> a -> a
-
-instance OffsetJoin Solid where offsetJoin = offsetSolid
-
-instance OffsetJoin Shape where offsetJoin = offsetShape
-
-instance OffsetJoin Path where offsetJoin = offsetPath
-
-instance OffsetJoin Path2D where offsetJoin = offsetPath2D
