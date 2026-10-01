@@ -1,10 +1,6 @@
 {- HLINT ignore "Eta reduce" -}
 
--- | cascade, waterfall, rapids
--- simplify waterfall-cad expressions by complicating the types and type errors
---
--- <#affine affine transforms> and 'pad' take a direction.
--- The direction is specified as either "Linear"'s 'ex' 'ey' 'ez', as a 'V3', one or more 'Double's.
+-- | <https://github.com/aavogt/rapids rapids> simplifies <https://hackage.haskell.org/package/waterfall-cad waterfall-cad> expressions
 --
 -- Many functions are overloaded on their number and type of arguments. In the documentation
 -- the following names are used for the arguments, and angle brackets (@\<x\>@) mean an argument is optional:
@@ -49,13 +45,46 @@ module Rapids
 
     -- ** affine transforms #affine#
 
-    -- |
+    -- | Each operation takes one or more arguments to specify the direction or amount, and multiple groups can be specified,
+    -- so that @mirror ex ey@ is short for @mirror ex . mirror ey@
+    --
+    -- >translate
+    -- >    x y z
+    -- >    v3
+    -- >    ex x
+    -- >    ey y
+    -- >    ez z
+    --
+    -- >mirror
+    -- >    v3
+    -- >    x y z
+    -- >    ex
+    -- >    ey
+    -- >    ez
+    --
+    -- >rotate
+    -- >  x y z radians
+    -- >  v3    radians
+    -- >  q
+    -- >  ex    radians
+    --
+    -- >scale
+    -- >  v3
+    -- >  xyz
+    -- >  x y z
+    -- >  xy z
+    -- >  ex x
+    -- >  ey y
+    --
     --
     --  'scaled' 'scaled2D' 'mirrored' 'translated' 'translated2D' 'rotated' 'rotatedDeg' include the original Solid,
-    -- 'above' 'stacked' 'centered' 'lefted' 'righted' include the left Solid
+    --
+    -- 'stacked' 'centered' 'lefted' 'righted' include both solids
+    --
     --
     --  'scale' 'scale2D' 'mirror' 'translate' 'translate2D' 'rotate' 'rotateDeg' only include the transformed Solid,
-    -- 'stack' 'center' 'left' 'right' only move the right Solid
+    --
+    -- 'stack' 'center' 'left' 'right' only return the second (translated) Solid
     module Rapids.Scale,
     module Rapids.Mirror,
 

@@ -41,7 +41,7 @@ import System.IO
 import Control.Monad
 import System.Exit
 
--- | Usage:
+-- | envDefaults allows accessing environment variables like ordinary haskell variables:
 --
 -- > {-# LANGUAGE TemplateHaskell #-}
 -- > import Rapids

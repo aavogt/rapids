@@ -48,9 +48,8 @@ lookupOneE fieldName = do
 tupE1 [x] = x
 tupE1 xs = tupE xs
 
--- | read the ./config.ini prusa-slicer configuration at compile time
---
--- As expression the result is:
+-- | read the ./config.ini prusa-slicer configuration at compile time.
+-- As an expression the result is:
 --
 -- > [iniVal| first_layer_height |] :: Double
 -- > [iniVal| first_layer_height layer_height |] :: (Double,Double)
