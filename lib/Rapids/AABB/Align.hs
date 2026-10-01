@@ -79,18 +79,6 @@ stacked el a b = a + stack el a b
 centered :: E V3 -> Solid -> Solid -> Solid
 centered el a b = a + center el a b
 
--- | > a `above` b
---
--- places the bottom of @a@ at the top of @b@ and adds @b@.
--- The convention is backwards compared to 'stacked', which would be @flip (stacked ez)@
--- and 'above' may be flipped and called below.
-above :: Solid -> Solid -> Solid
-a `above` b = fromJust do
-   (_, V3 _ _ b2) <- axisAlignedBoundingBox b
-   (V3 _ _ a1, _) <- axisAlignedBoundingBox a
-   let dz = b2 - a1
-   Just $ translate ez dz a + b
-
 -- | @lefted ex a b = a + left ex a b@
 lefted :: E V3 -> Solid -> Solid -> Solid
 lefted el a b = a + left el a b
