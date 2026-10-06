@@ -8,7 +8,7 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `pad <x y> z <taperFrac> shape`
     - `pad v3 <taperFrac>`
   - `offset amount <join> <openfaces> solid|shape|path|path2d`
-    - `join :: CInt` is 0,1,2 <https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html GeomAbs_JoinType>
+    - `join :: CInt` is 0,1,2 [GeomAbs_JoinType ](https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html)
     - `openfaces :: [CInt]` 1-based indices of faces to remove ([freecad's thickness](https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Part_Thickness.md)). TODO interpret it as `openedges` for `shape|path|path2d` and adapt colorQuery.
   - `sweep path shape`
   - `sweepRuled (\shapeVertex -> path) shape`
@@ -49,8 +49,8 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
           ey y
 ```
   - `axisAlignedBoundingBox` arrangements covering many of the cases done in [Inkscape's Align and Distribute](https://inkscape-manuals.readthedocs.io/en/latest/align-and-distribute.html)
-    - `stack, center, left, right :: E V3 -> Solid -> Solid -> Solid` translates the second Solid. That is:
-        - `stack ez a b == translate ez z b` where `z` makes the bottom of `b` coplanar with the top of `a`.
+    - `stack, center, left, right :: E V3 -> Solid -> Solid -> Solid` translates the second Solid:
+        - `stack ez a b == translate ez z b` where `z :: Double` puts `b` on top of `a`.
         - `center ez a b == translate (V3 x y 0) b` where `x` `y` make the centers of the z-faces collinear.
         - `left ex a b = translate ex x b` where `x` makes the left (lower x coordinate) faces coplanar
         - `right ex a b = translate ex x b` where `x` makes the right (higher x coordinate) faces coplanar
