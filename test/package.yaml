@@ -44,3 +44,9 @@ executables:
     dependencies:
       - test
       - containers
+  sweepRuled:
+    main: sweepRuled.hs
+    dependencies:
+      - test
+      - rapids-svg
+      - containers

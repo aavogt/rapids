@@ -1,1 +1,1 @@
-packages: . .. ../../rapids/deps/waterfall-cad-0.6.3.2/
+packages: . .. ../../rapids/deps/waterfall-cad-0.6.3.2/ ../rapids-svg/
