@@ -3,6 +3,7 @@ module Rapids.Transforms.Mirror where
 import Rapids.Transforms.Mirror.Go
 import Rapids.Color
 import qualified Waterfall as W
+import Data.Data
 
 -- *** mirror
 
@@ -21,9 +22,9 @@ mirrored :: (MirrorGo r t) => r
 mirrored = mirrorGo id (\v x -> x + propagateColor (W.mirror v) x)
 
 -- | @_mirrored ... :: Iso a b a b@ allows the result to have a different type
-_mirrored :: (MirroredGo a b r) => r
-_mirrored = mirroredGo (Transform3D id) (Transform3D id)
+_mirrored :: (MirroredGo a b False r) => r
+_mirrored = mirroredGo (Proxy @False) mempty mempty
 
 -- | @_mirrored' ... :: Iso a a a a@
-_mirrored' :: (MirroredGo a a r) => r
-_mirrored' = _mirrored
+_mirrored' :: (MirroredGo a b True r) => r
+_mirrored' = mirroredGo (Proxy @True) mempty mempty

@@ -3,6 +3,7 @@ module Rapids.Transforms.Translate where
 
 import Rapids.Transforms.Translate.Go
 import qualified Waterfall as W
+import Data.Data
 
 -- *** translate
 -- **** 3D
@@ -27,13 +28,13 @@ translated :: (Num t, TranslateGo t r) => r
 translated = translateGo 0 \v x -> x + W.translate v x
 
 -- | @_translated@ produces an 'Control.Lens.Iso.Iso' using the same arguments as 'translate'
-_translated :: (TranslatedGo a b r) => r
-_translated = translatedGo 0
+_translated :: (TranslatedGo a b False r) => r
+_translated = translatedGo (Proxy @False) 0
 
 -- | @_translated' ... = 'simple' (_translated ...) . 'simple'@ requires the forward and backward objects
 -- to have the same type.
-_translated' :: (TranslatedGo a a r) => r
-_translated' = _translated
+_translated' :: (TranslatedGo a b True r) => r
+_translated' = translatedGo (Proxy @True) 0
 
 -- **** 2D
 -- |
@@ -53,10 +54,10 @@ translated2D :: (Num t, Translate2DGo t r) => r
 translated2D = translate2DGo 0 \v x -> x + W.translate2D v x
 
 -- | @_translated2D@ produces an 'Control.Lens.Iso.Iso' using the same arguments as 'translate2D'
-_translated2D :: (Translated2DGo a b r) => r
-_translated2D = translated2DGo 0
+_translated2D :: (Translated2DGo a b False r) => r
+_translated2D = translated2DGo (Proxy @False) 0
 
 -- | @_translated2D' ... = 'simple' (_translated2D ...) . 'simple'@ requires the forward and backward objects
 -- to have the same type.
-_translated2D' :: (Translated2DGo a a r) => r
-_translated2D' = _translated2D
+_translated2D' :: (Translated2DGo a b True r) => r
+_translated2D' = translated2DGo (Proxy @True) 0

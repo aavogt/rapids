@@ -3,6 +3,7 @@ module Rapids.Transforms.Rotate where
 import Rapids.Transforms.Rotate.Go
 import Rapids.Color
 import qualified Waterfall as W
+import Data.Data
 
 -- *** rotate
 
@@ -34,10 +35,15 @@ rotatedDeg = rotateGo id \axis angle x -> x + W.rotate axis (fromDeg angle) x
 
 -- | @_rotated@ produces a type-changing 'Iso' using the same arguments as 'rotate'.
 -- The input is rotated before the operation; its result is rotated back.
-_rotated :: (Rotated'Go r t) => r
-_rotated = rotated'Go mempty mempty
+_rotated :: (RotatedGo a b False r) => r
+_rotated = rotatedGo mod2pi (Proxy @False) mempty mempty
 
 -- | @_rotated'@ is the endomorphic, overloaded form of @_rotated@.
-_rotated' :: (RotatedGo r t) => r
-_rotated' = rotatedGo id id
+_rotated' :: (RotatedGo a b True r) => r
+_rotated' = rotatedGo mod2pi (Proxy @True) mempty mempty
 
+_rotatedDeg :: (RotatedGo a b False r) => r
+_rotatedDeg = rotatedGo fromDeg (Proxy @False) mempty mempty
+
+_rotatedDeg' :: (RotatedGo a b True r) => r
+_rotatedDeg' = rotatedGo fromDeg (Proxy @True) mempty mempty

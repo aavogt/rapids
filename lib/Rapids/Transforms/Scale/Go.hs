@@ -4,37 +4,91 @@
 module Rapids.Transforms.Scale.Go where
 
 import Control.Lens hiding (prism)
+import Data.Data
 import Linear hiding (scaled)
 import Rapids.Color
+import Rapids.Transforms.Translate.Go
 import Waterfall
 import qualified Waterfall as W
-import qualified Waterfall.Internal.NearZero as WNZ
 
-class (Transformable t) => Scaled'Go r t | r -> t where
-  scaled'Go :: Transform3D -> Transform3D -> r
+class ScaledGo a b (c :: Bool) r | r -> a b where
+  scaledGo :: Proxy c -> Scaling V3 -> r
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, Transformable b, a ~ t) => Scaled'Go (Optic p g a b a b) t where
-  scaled'Go forward backward = iso (propagateColor (runTransform3D forward)) (runTransform3D backward)
+-- base case
+instance
+  {-# INCOHERENT #-}
+  (Profunctor p, Functor g, PropagateColor a, Transformable b, s ~ a, t ~ b, TypesEq c a b) =>
+  ScaledGo a b c (Optic p g s t a b)
+  where
+  scaledGo _ = \case
+    Scaling (Left a) -> iso (propagateColor (scale a)) (propagateColor (scale (1 / a)))
+    Scaling (Right a) -> iso (propagateColor (uScale a)) (propagateColor (uScale (1 / a)))
 
-instance {-# OVERLAPPING #-} (v ~ V3, amount ~ Double, Scaled'Go r t) => Scaled'Go (E v -> amount -> r) t where
-  scaled'Go forward backward (E e) amount =
-    let factors = 1 & e .~ amount
-        scaling = Transform3D (W.scale factors)
-        inverse = Transform3D (W.scale (1 / factors))
-     in scaled'Go (composeTransform3D forward scaling) (composeTransform3D inverse backward)
+instance {-# OVERLAPS #-} (v ~ V3, amount ~ Double, ScaledGo a b c r) => ScaledGo a b c (E v -> amount -> r) where
+  scaledGo c v (E e) amount = scaledGo c (onV3 v $ e *~ amount)
 
-class (Transformable2D t) => Scaled2D'Go r t | r -> t where
-  scaled2D'Go :: Transform2D -> Transform2D -> r
+instance {-# OVERLAPS #-} (d ~ Double, ScaledGo a b c r) => ScaledGo a b c (V3 d -> r) where
+  scaledGo c v w = scaledGo c (onV3 v (* w))
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, Transformable2D a, Transformable2D b, a ~ t) => Scaled2D'Go (Optic p g a b a b) t where
-  scaled2D'Go forward backward = iso (runTransform2D forward) (runTransform2D backward)
+instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, z ~ Double, ScaledGo a b c r) => ScaledGo a b c (x -> y -> z -> r) where
+  scaledGo c v x y z = scaledGo c (v <> scalingV3 x y z)
 
-instance {-# OVERLAPPING #-} (v ~ V2, amount ~ Double, Scaled2D'Go r t) => Scaled2D'Go (E v -> amount -> r) t where
-  scaled2D'Go forward backward (E e) amount =
-    let factors = 1 & e .~ amount
-        scaling = Transform2D (W.scale2D factors)
-        inverse = Transform2D (W.scale2D (1 / factors))
-     in scaled2D'Go (composeTransform2D forward scaling) (composeTransform2D inverse backward)
+-- instance {-# OVERLAPS #-} (ScaledGo a b c r) => ScaledGo a b c (Double -> Double -> r) where
+--   scaledGo c v xy z = scaledGo c (v <> scalingV3 xy xy z)
+--
+-- instance {-# OVERLAPS #-} (ScaledGo a b c r) => ScaledGo a b c (Double -> r) where
+--   scaledGo c v xyz = scaledGo c (onU v (* xyz))
+
+class Scaled2DGo a b (c :: Bool) r | r -> a b where
+  scaled2DGo :: Proxy c -> Scaling V2 -> r
+
+-- base case
+instance
+  {-# INCOHERENT #-}
+  (Profunctor p, Functor g, Transformable2D a, Transformable2D b, s ~ a, t ~ b, TypesEq c a b) =>
+  Scaled2DGo a b c (Optic p g s t a b)
+  where
+  scaled2DGo _ = \case
+    Scaling (Left a) -> iso (scale2D a) (scale2D (1 / a))
+    Scaling (Right a) -> iso (uScale2D a) (uScale2D (1 / a))
+
+instance {-# OVERLAPS #-} (v ~ V2, amount ~ Double, Scaled2DGo a b c r) => Scaled2DGo a b c (E v -> amount -> r) where
+  scaled2DGo c v (E e) amount = scaled2DGo c (onV2 v $ e *~ amount)
+
+instance {-# OVERLAPS #-} (Scaled2DGo a b c r) => Scaled2DGo a b c (Double -> Double -> r) where
+  scaled2DGo c v x y = scaled2DGo c (v <> scalingV2 x y)
+
+instance {-# OVERLAPS #-} (Scaled2DGo a b c r) => Scaled2DGo a b c (Double -> r) where
+  scaled2DGo c v xy = scaled2DGo c (onU v (* xy))
+
+newtype Scaling v = Scaling (Either (v Double) Double)
+
+instance (Functor v, Num (v Double)) => Monoid (Scaling v) where mempty = Scaling (Right 1)
+
+instance (Functor v, Num (v Double)) => Semigroup (Scaling v) where
+  Scaling (Left a) <> Scaling (Left b) = Scaling (Left (a * b))
+  Scaling (Right a) <> Scaling (Right b) = Scaling (Right (a * b))
+  Scaling (Left a) <> Scaling (Right b) = Scaling (Left (fmap (* b) a))
+  Scaling (Right a) <> Scaling (Left b) = Scaling (Left (fmap (a *) b))
+
+scalingU :: Double -> Scaling v
+scalingU u = Scaling (Right u)
+
+scalingV3 :: Double -> Double -> Double -> Scaling V3
+scalingV3 x y z = Scaling (Left (V3 x y z))
+
+scalingV2 :: Double -> Double -> Scaling V2
+scalingV2 x y = Scaling (Left (V2 x y))
+
+onV3 :: Scaling V3 -> (V3 Double -> V3 Double) -> Scaling V3
+onV3 (Scaling v) k = Scaling $ Left $ k $ either id (\u -> V3 u u u) v
+
+onV2 :: Scaling V2 -> (V2 Double -> V2 Double) -> Scaling V2
+onV2 (Scaling v) k = Scaling $ Left $ k $ either id (\u -> V2 u u) v
+
+onU :: (Functor v) => Scaling v -> (Double -> Double) -> Scaling v
+onU (Scaling (Left v)) k = Scaling $ Left (fmap k v)
+onU (Scaling (Right v)) k = Scaling $ Right (k v)
 
 class (PropagateColor t, Transformable t) => ScaleGo r t | r -> t where
   scaleGo :: (t -> t) -> (V3 Double -> t -> t) -> (Double -> t -> t) -> r
@@ -73,74 +127,3 @@ instance {-# INCOHERENT #-} (ScaleGo (t -> t) a, Num a, d ~ Double, PropagateCol
 
 instance {-# OVERLAPS #-} (ScaleGo (t -> t) a, Num a, PropagateColor a, a' ~ a, a ~ t, Double ~ d) => ScaleGo (d -> a -> a') t where
   scaleGo acc f g factor a = scaleGo (acc . g factor) f g a
-
-scaledOptic ::
-  forall p g a a'.
-  (Profunctor p, Functor g, PropagateColor a, a' ~ a) =>
-  V3 Double ->
-  Maybe (Optic' p g a a')
-scaledOptic v
-  | any WNZ.nearZero v = Nothing
-  | otherwise = Just $ iso (propagateColor (W.scale v) :: a' -> a) (propagateColor (W.scale (1 / v)) :: a -> a')
-
-class (Transformable t) => ScaledOpticGo r t | r -> t where
-  scaledOpticGo :: Bool -> (t -> t) -> (t -> t) -> r
-
--- base case
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, a' ~ a, a ~ t) => ScaledOpticGo (Optic' p g a a') t where
-  scaledOpticGo valid forward backward = iso (propagateColor forward :: a' -> a) (propagateColor backward :: a -> a')
-
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, ScaledOpticGo r t) => ScaledOpticGo (d -> e -> f -> r) t where
-  scaledOpticGo valid forward backward x y z =
-    let factors = V3 x y z
-        scaling = W.scale factors
-        inverse = W.scale (1 / factors)
-     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
-
-instance {-# INCOHERENT #-} (xy ~ Double, z ~ Double, ScaledOpticGo r t) => ScaledOpticGo (xy -> z -> r) t where
-  scaledOpticGo valid forward backward xy z =
-    let factors = V3 xy xy z
-        scaling = W.scale factors
-        inverse = W.scale (1 / factors)
-     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
-
-instance {-# OVERLAPPABLE #-} (d ~ Double, ScaledOpticGo r t) => ScaledOpticGo (V3 d -> r) t where
-  scaledOpticGo valid forward backward factors =
-    let scaling = W.scale factors
-        inverse = W.scale (1 / factors)
-     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
-
-instance {-# OVERLAPPABLE #-} (d ~ Double, ScaledOpticGo r t) => ScaledOpticGo (d -> r) t where
-  scaledOpticGo valid forward backward factor =
-    let scaling = W.uScale factor
-        inverse = W.uScale (1 / factor)
-     in scaledOpticGo (valid && not (WNZ.nearZero factor)) (forward . scaling) (inverse . backward)
-
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, ScaledOpticGo r t) => ScaledOpticGo (E v -> amt -> r) t where
-  scaledOpticGo valid forward backward (E e) amt =
-    let factors = 1 & e .~ amt
-        scaling = W.scale factors
-        inverse = W.scale (1 / factors)
-     in scaledOpticGo (valid && not (any WNZ.nearZero factors)) (forward . scaling) (inverse . backward)
-
-scaled2DOptic ::
-  forall p g a a'.
-  (Profunctor p, Functor g, Transformable2D a, a' ~ a) =>
-  V2 Double ->
-  Optic' p g a a'
-scaled2DOptic v = iso (W.scale2D v :: a' -> a) (W.scale2D (1 / v) :: a -> a')
-
-class Scaled2DGo r where
-  scaled2DGo :: r
-
-instance {-# INCOHERENT #-} (x ~ Double, y ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2DGo (x -> y -> (Optic' p g a a')) where
-  scaled2DGo x y = scaled2DOptic (V2 x y)
-
-instance {-# OVERLAPPABLE #-} (d ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2DGo (V2 d -> (Optic' p g a a')) where
-  scaled2DGo v = scaled2DOptic v
-
-instance {-# OVERLAPPABLE #-} (d ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2DGo (d -> (Optic' p g a a')) where
-  scaled2DGo xy = scaled2DOptic (V2 xy xy)
-
-instance {-# OVERLAPPABLE #-} (v ~ V2, amt ~ Double, Profunctor p, Functor g, Transformable2D a, a' ~ a) => Scaled2DGo (E v -> amt -> (Optic' p g a a')) where
-  scaled2DGo (E e) amt = scaled2DOptic (1 & e .~ amt)

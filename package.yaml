@@ -50,6 +50,7 @@ default-extensions:
   - StandaloneDeriving
   - DeriveLift
   - OverloadedLabels
+  - LambdaCase
 
 library:
   source-dirs:
