@@ -11,6 +11,7 @@ import Rapids.ToPath
 import Rapids.Offset
 import Waterfall.Path
 import Waterfall.TwoD.Path2D
+import Foreign.C.Types (CInt)
 
 -- | rgb xyz axes 4 units long
 axisTriad :: Solid
@@ -38,6 +39,7 @@ zSolid = fromPaths [ toPath $ rotate2D angle $ pathFrom 0 [
  ]
 
 xSolid = fromPaths [line 0 (V3 a b 0) | a <- [-w/2, w/2], b <- [-h/2,h/2]]
+
 
 fromPaths = foldMap (pad t . toShape . offset t 1)
 
