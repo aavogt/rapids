@@ -12,6 +12,7 @@ import Data.Either (fromRight)
 import Foreign (Ptr)
 import Foreign.C (CDouble (..), CInt (..))
 import Foreign.C.Types (CBool, CDouble)
+import Foreign.Marshal.Array (withArray)
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
@@ -34,6 +35,7 @@ import Waterfall.Internal.Solid
     emptySolid,
     solidFromAcquireWithCatch,
   )
+import Data.Maybe
 
 C.context occtContext
 Cpp.include "<BRep_Builder.hxx>"
@@ -41,11 +43,15 @@ Cpp.include "<BRepBuilderAPI_MakeSolid.hxx>"
 Cpp.include "<BRepGProp.hxx>"
 Cpp.include "<BRepOffset.hxx>"
 Cpp.include "<BRepOffsetAPI_MakeOffsetShape.hxx>"
+Cpp.include "<BRepOffsetAPI_MakeThickSolid.hxx>"
 Cpp.include "<GProp_GProps.hxx>"
 Cpp.include "<GeomAbs_JoinType.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 Cpp.include "<TopAbs_ShapeEnum.hxx>"
+Cpp.include "<TopExp.hxx>"
 Cpp.include "<TopExp_Explorer.hxx>"
+Cpp.include "<TopTools_IndexedMapOfShape.hxx>"
+Cpp.include "<TopTools_ListOfShape.hxx>"
 Cpp.include "<TopoDS.hxx>"
 Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
@@ -59,6 +65,11 @@ class Offset a where
   -- (see <https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html GeomAbs_JoinType>):
   --
   -- > offset amount <join> solid|shape|path|path2d
+  -- > offset amount <join> <openfaces> solid
+  --
+  -- @openfaces@ contains 1-based face indices to remove from each solid component;
+  -- indices out of range for a component are ignored.
+  -- > offset 0.1 0 [1] solid -- leave face 1 open while thickening
   --
   -- > offset amount solid   -- round corners
   -- > offset amount 0 solid -- round corners (Arc)
@@ -68,28 +79,51 @@ class Offset a where
 
 -- | the default is @join@ 0, round corners
 instance {-# INCOHERENT #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
-  offset amount solid = offsetJoin (coerce amount) 0 solid
+  offset amount solid = offsetJoin [] (coerce amount) 0 solid
 
--- | an explicit @join@ of 0, 1 or 2
-instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where offset amount = offsetJoin (coerce amount)
+-- | @offset amount join solid|shape|path|path2d@
+instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where offset amount = offsetJoin [] (coerce amount)
+
+-- | @offset amount openfaces solid|shape|path|path2d@
+instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset ([b] -> a -> a') where offset amount openfaces = offsetJoin openfaces (coerce amount) 0
+
+-- | @offset amount join openfaces solid|shape|path|path2d@
+instance (OffsetJoin a, b ~ CInt, c ~ CInt, a ~ a') => Offset (b -> [c] -> a -> a') where offset amount join openfaces = offsetJoin openfaces (coerce amount) join
 
 -- | @offsetJoin amount join@, used to define 'offset'. @join@ is 0 (Arc), 1 (Tangent) or 2 (Intersection)
-class OffsetJoin a where offsetJoin :: CDouble -> CInt -> a -> a
+class OffsetJoin a where offsetJoin :: [CInt] -> CDouble -> CInt -> a -> a
 
-instance OffsetJoin Solid where offsetJoin = offsetSolid
+-- instance OffsetJoin Solid where offsetJoin _ = offsetSolid
 
-instance OffsetJoin Shape where offsetJoin = offsetShape
+instance OffsetJoin Shape where offsetJoin _ = offsetShape
 
-instance OffsetJoin Path where offsetJoin = offsetPath
+instance OffsetJoin Path where offsetJoin _ = offsetPath
 
-instance OffsetJoin Path2D where offsetJoin = offsetPath2D
+instance OffsetJoin Path2D where offsetJoin _ = offsetPath2D
+
+-- | Offset a 'Solid' while leaving the listed 1-based face indices open.
+-- The indices use OpenCascade's face ordering and apply separately to each
+-- solid when the input contains multiple solid components.
+instance (join ~ CInt, face ~ CInt) => OffsetJoin Solid where
+  offsetJoin openFaces amount join = offsetSolidWithOpenFaces (coerce amount) join openFaces
 
 -- | @offsetSolidWithTolerance tolerance amount join solid@ offsets every solid component and retains a compound when there are many.
 offsetSolidWithTolerance :: CDouble -> CDouble -> CInt -> Solid -> Solid
-offsetSolidWithTolerance tolerance value join solid
+offsetSolidWithTolerance tolerance value join = offsetSolid' tolerance value join Nothing
+
+-- | @offsetSolidWithOpenFaces amount join openFaces solid@ leaves the selected
+-- faces open while building a thick solid.
+offsetSolidWithOpenFaces :: CDouble -> CInt -> [CInt] -> Solid -> Solid
+offsetSolidWithOpenFaces value join openFaces = offsetSolid' 1e-6 value join (Just openFaces)
+
+offsetSolid' :: CDouble -> CDouble -> CInt -> Maybe [CInt] -> Solid -> Solid
+offsetSolid' tolerance value join openFaces solid
   | coerce nearZero value = solid
   | otherwise =
-      [Cpp.block| TopoDS_Shape* {
+      let faceIndices = fromMaybe [] openFaces :: [CInt]
+          hasOpenFaces = maybe 0 (const 1) openFaces :: CInt
+          faceCount = fromIntegral (length faceIndices) :: CInt
+       in ownSolid (withArray faceIndices $ \faceIndexArray -> [Cpp.block| TopoDS_Shape* {
     TopoDS_Shape* result = new TopoDS_Shape();
     TopoDS_Shape* input = $solid:solid;
     if (input == nullptr || input->IsNull()) {
@@ -104,18 +138,44 @@ offsetSolidWithTolerance tolerance value join solid
 
     for (TopExp_Explorer solids(*input, TopAbs_SOLID);
           solids.More(); solids.Next()) {
-      BRepOffsetAPI_MakeOffsetShape offset;
-      offset.PerformByJoin(
-        solids.Current(),
-        $(double value),
-        $(double tolerance),
-        BRepOffset_Skin,
-        Standard_False,
-        Standard_False,
-        static_cast<GeomAbs_JoinType>($(int join)),
-        Standard_False);
+      TopoDS_Shape offsetShape;
+      if ($(int hasOpenFaces) != 0) {
+        TopTools_IndexedMapOfShape faces;
+        TopExp::MapShapes(solids.Current(), TopAbs_FACE, faces);
+        TopTools_ListOfShape closingFaces;
+        const int* indices = $(int* faceIndexArray);
+        for (int i = 0; i < $(int faceCount); ++i) {
+          const int index = indices[i];
+          if (index > 0 && index <= faces.Extent()) {
+            closingFaces.Append(faces(index));
+          }
+        }
+        BRepOffsetAPI_MakeThickSolid thickSolid;
+        thickSolid.MakeThickSolidByJoin(
+          solids.Current(),
+          closingFaces,
+          $(double value),
+          $(double tolerance),
+          BRepOffset_Skin,
+          Standard_False,
+          Standard_False,
+          static_cast<GeomAbs_JoinType>($(int join)),
+          Standard_False);
+        offsetShape = thickSolid.Shape();
+      } else {
+        BRepOffsetAPI_MakeOffsetShape offset;
+        offset.PerformByJoin(
+          solids.Current(),
+          $(double value),
+          $(double tolerance),
+          BRepOffset_Skin,
+          Standard_False,
+          Standard_False,
+          static_cast<GeomAbs_JoinType>($(int join)),
+          Standard_False);
+        offsetShape = offset.Shape();
+      }
 
-      TopoDS_Shape offsetShape = offset.Shape();
       BRepBuilderAPI_MakeSolid solidBuilder;
       Standard_Integer shellCount = 0;
       for (TopExp_Explorer shells(offsetShape, TopAbs_SHELL);
@@ -144,6 +204,5 @@ offsetSolidWithTolerance tolerance value join solid
       *result = compound;
     }
   return result;
-  }|]
-        & ownSolid
-        & propagateSolidColors solid
+  }|])
+          & propagateSolidColors solid
