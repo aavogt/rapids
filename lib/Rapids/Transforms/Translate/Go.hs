@@ -1,40 +1,42 @@
 module Rapids.Transforms.Translate.Go where
 
 import Control.Lens hiding (prism)
+import Data.Data
 import Linear
 import Rapids.Color
 import Waterfall (Transformable2D)
 import qualified Waterfall as W
 
-class TranslatedGo a b r | r -> a b where
-  translatedGo :: V3 Double -> r
+type family TypesEq (eq :: Bool) a b where
+  TypesEq True a b = a ~ b
+  TypesEq _ a b = ()
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, PropagateColor b) => TranslatedGo a b (Optic p g a b a b) where
-  translatedGo v = iso (propagateColor (W.translate v)) (propagateColor (W.translate (-v)))
+class TranslatedGo a b (c :: Bool) r | r -> a b where
+  translatedGo :: Proxy c -> V3 Double -> r
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, TranslatedGo a b r) => TranslatedGo a b (d -> e -> f -> r) where
-  translatedGo v x y z = translatedGo (v + V3 x y z)
+instance {-# INCOHERENT #-} (TypesEq c a b, s ~ a, t ~ b, Profunctor p, Functor g, PropagateColor a, PropagateColor b) => TranslatedGo a b c (Optic p g s t a b) where
+  translatedGo _ v = iso (propagateColor (W.translate v)) (propagateColor (W.translate (-v)))
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, TranslatedGo a b r) => TranslatedGo a b (V3 d -> r) where
-  translatedGo v w = translatedGo (v+w)
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, TranslatedGo a b c r) => TranslatedGo a b c (d -> e -> f -> r) where
+  translatedGo c v x y z = translatedGo c (v + V3 x y z)
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, amt ~ Double, TranslatedGo a b r) => TranslatedGo a b (E v -> amt -> r) where
-  translatedGo v (E e) amount = translatedGo (v & e +~ amount)
+instance {-# OVERLAPS #-} (d ~ Double, TranslatedGo a b c r) => TranslatedGo a b c (V3 d -> r) where
+  translatedGo c v w = translatedGo c (v + w)
 
-class Translated2DGo a b r | r -> a b where
-  translated2DGo :: V2 Double -> r
+instance {-# OVERLAPS #-} (v ~ V3, amt ~ Double, TranslatedGo a b c r) => TranslatedGo a b c (E v -> amt -> r) where
+  translatedGo c v (E e) amount = translatedGo c (v & e +~ amount)
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, Transformable2D a, Transformable2D b) => Translated2DGo a b (Optic p g a b a b) where
-  translated2DGo v = iso (W.translate2D v) (W.translate2D (-v))
+class Translated2DGo a b (c :: Bool) r | r -> a b where
+  translated2DGo :: Proxy c -> V2 Double -> r
 
-instance {-# OVERLAPPING #-} (v ~ V2, amt ~ Double, Translated2DGo a b r) => Translated2DGo a b (E v -> amt -> r) where
-  translated2DGo v (E e) amount = translated2DGo (v & e +~ amount)
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, Transformable2D a, Transformable2D b, TypesEq c a b, s ~ a, t ~ b) => Translated2DGo a b c (Optic p g s t a b) where
+  translated2DGo _ v = iso (W.translate2D v) (W.translate2D (-v))
 
-instance {-# OVERLAPPABLE #-} (Double ~ d, Translated2DGo a b r) => Translated2DGo a b (V2 d -> r) where
-  translated2DGo v w = translated2DGo (v + w)
+instance {-# OVERLAPS #-} (v ~ V2, amt ~ Double, Translated2DGo a b c r) => Translated2DGo a b c (E v -> amt -> r) where
+  translated2DGo c v (E e) amount = translated2DGo c (v & e +~ amount)
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, Translated2DGo a b r) => Translated2DGo a b (d -> e -> r) where
-  translated2DGo v x y = translated2DGo (v + V2 x y)
+instance {-# OVERLAPS #-} (Double ~ d, Translated2DGo a b c r) => Translated2DGo a b c (V2 d -> r) where
+  translated2DGo c v w = translated2DGo c (v + w)
 
 class (W.Transformable t) => TranslateGo t r | r -> t where
   translateGo :: V3 Double -> (V3 Double -> t -> t) -> r

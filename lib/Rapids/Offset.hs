@@ -5,37 +5,21 @@
 -- | 'offset' grows (positive amount) or shrinks (negative amount) 'Solid', 'Shape', 'Path' and 'Path2D'
 module Rapids.Offset where
 
-import Control.Monad.IO.Class (liftIO)
-import Data.Acquire (mkAcquire)
 import Data.Coerce (coerce)
-import Data.Either (fromRight)
 import Foreign (Ptr)
 import Foreign.C (CDouble (..), CInt (..))
 import Foreign.C.Types (CBool, CDouble)
 import Foreign.Marshal.Array (withArray)
-import InlineOCCT
+import InlineOCCT ( occtContext, ownSolid )
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import qualified OpenCascade.TopoDS as TopoDS
-import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
 import Rapids.Path.Offset (offsetPath, offsetPath2D, offsetShape)
-import Rapids.Color
-import Rapids.Reexports
-  ( Path,
-    Path2D,
-    Shape,
-    Solid,
-    emptySolid,
-    nearZero,
-    (&),
-  )
-import Waterfall.Internal.Finalizers (unsafeFromAcquire)
-import Waterfall.Internal.Solid
-  ( acquireSolid,
-    emptySolid,
-    solidFromAcquireWithCatch,
-  )
-import Data.Maybe
+import Rapids.Color ( propagateSolidColors )
+import Rapids.Reexports.Lens ( (&) )
+import Rapids.Reexports.Waterfall
+    ( Path2D, Path, nearZero, Solid, Shape )
+import Data.Maybe ( fromMaybe )
 
 C.context occtContext
 Cpp.include "<BRep_Builder.hxx>"
@@ -56,74 +40,76 @@ Cpp.include "<TopoDS.hxx>"
 Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 
--- | 1e-6 tolerance, see 'offsetSolidWithTolerance'
-offsetSolid :: CDouble -> CInt -> Solid -> Solid
-offsetSolid = offsetSolidWithTolerance 1e-6
-
 class Offset a where
   -- | @join@ is optional (default 0) and selects how corners are treated
   -- (see <https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html GeomAbs_JoinType>):
   --
-  -- > offset amount <join> solid|shape|path|path2d
-  -- > offset amount <join> <openfaces> solid
+  -- > offset amount <join> <openfaces> solid|shape|path|path2d
   --
-  -- @openfaces@ contains 1-based face indices to remove from each solid component;
-  -- indices out of range for a component are ignored.
-  -- > offset 0.1 0 [1] solid -- leave face 1 open while thickening
+  -- @openfaces :: [CInt]@ contains 1-based indices of faces (for solid) to
+  -- remove from each solid component. Currently ignored for shape|path|path2d.
   --
   -- > offset amount solid   -- round corners
   -- > offset amount 0 solid -- round corners (Arc)
   -- > offset amount 1 solid -- Tangent
   -- > offset amount 2 solid -- sharp corners (Intersection)
+  --
+  -- > offset 0.1 [1,2] unitCube -- round box without top and bottom
+  -- > offset 0.1 2 [1,2] unitCube -- sharp box without top and bottom
   offset :: Double -> a
 
 -- | the default is @join@ 0, round corners
-instance {-# INCOHERENT #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
-  offset amount solid = offsetJoin [] (coerce amount) 0 solid
+instance {-# OVERLAPPABLE #-} (OffsetJoin a, a ~ a') => Offset (a -> a') where
+  offset amount solid = offsetJoin (coerce amount) 0 [] solid
 
 -- | @offset amount join solid|shape|path|path2d@
-instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where offset amount = offsetJoin [] (coerce amount)
+instance {-# INCOHERENT #-} (OffsetJoin a, b ~ CInt, a ~ a') => Offset (b -> a -> a') where
+  offset amount join = offsetJoin (coerce amount) join []
 
 -- | @offset amount openfaces solid|shape|path|path2d@
-instance (OffsetJoin a, b ~ CInt, a ~ a') => Offset ([b] -> a -> a') where offset amount openfaces = offsetJoin openfaces (coerce amount) 0
+instance {-# INCOHERENT #-} (OffsetJoin a, b ~ CInt, a ~ a') => Offset ([b] -> a -> a') where
+  offset amount openfaces = offsetJoin (coerce amount) 0 openfaces
 
 -- | @offset amount join openfaces solid|shape|path|path2d@
-instance (OffsetJoin a, b ~ CInt, c ~ CInt, a ~ a') => Offset (b -> [c] -> a -> a') where offset amount join openfaces = offsetJoin openfaces (coerce amount) join
+instance {-# INCOHERENT #-} (OffsetJoin a, b ~ CInt, c ~ CInt, a ~ a') => Offset (b -> [c] -> a -> a') where
+  offset amount join openfaces = offsetJoin (coerce amount) join openfaces
 
--- | @offsetJoin amount join@, used to define 'offset'. @join@ is 0 (Arc), 1 (Tangent) or 2 (Intersection)
-class OffsetJoin a where offsetJoin :: [CInt] -> CDouble -> CInt -> a -> a
+-- | @offsetJoin amount join openfaces@, used to define 'offset'. @join@ is 0 (Arc), 1 (Tangent) or 2 (Intersection)
+class OffsetJoin a where offsetJoin :: CDouble -> CInt -> [CInt] -> a -> a
 
--- instance OffsetJoin Solid where offsetJoin _ = offsetSolid
+instance OffsetJoin Shape where offsetJoin amount join _ = offsetShape amount join
 
-instance OffsetJoin Shape where offsetJoin _ = offsetShape
+instance OffsetJoin Path where offsetJoin amount join _ = offsetPath amount join
 
-instance OffsetJoin Path where offsetJoin _ = offsetPath
-
-instance OffsetJoin Path2D where offsetJoin _ = offsetPath2D
+instance OffsetJoin Path2D where offsetJoin amount join _ = offsetPath2D amount join
 
 -- | Offset a 'Solid' while leaving the listed 1-based face indices open.
 -- The indices use OpenCascade's face ordering and apply separately to each
 -- solid when the input contains multiple solid components.
 instance (join ~ CInt, face ~ CInt) => OffsetJoin Solid where
-  offsetJoin openFaces amount join = offsetSolidWithOpenFaces (coerce amount) join openFaces
+  offsetJoin amount join openfaces = offsetSolidWithOpenFaces (coerce amount) join openfaces
+
+-- | 1e-6 tolerance, see 'offsetSolidWithTolerance'
+offsetSolid :: CDouble -> CInt -> Solid -> Solid
+offsetSolid = offsetSolidWithTolerance 1e-6
 
 -- | @offsetSolidWithTolerance tolerance amount join solid@ offsets every solid component and retains a compound when there are many.
 offsetSolidWithTolerance :: CDouble -> CDouble -> CInt -> Solid -> Solid
 offsetSolidWithTolerance tolerance value join = offsetSolid' tolerance value join Nothing
 
--- | @offsetSolidWithOpenFaces amount join openFaces solid@ leaves the selected
+-- | @offsetSolidWithOpenFaces amount join openfaces solid@ leaves the selected
 -- faces open while building a thick solid.
 offsetSolidWithOpenFaces :: CDouble -> CInt -> [CInt] -> Solid -> Solid
-offsetSolidWithOpenFaces value join openFaces = offsetSolid' 1e-6 value join (Just openFaces)
+offsetSolidWithOpenFaces value join openfaces = offsetSolid' 1e-6 value join (Just openfaces)
 
 offsetSolid' :: CDouble -> CDouble -> CInt -> Maybe [CInt] -> Solid -> Solid
-offsetSolid' tolerance value join openFaces solid
+offsetSolid' tolerance value join openfaces solid
   | coerce nearZero value = solid
   | otherwise =
-      let faceIndices = fromMaybe [] openFaces :: [CInt]
-          hasOpenFaces = maybe 0 (const 1) openFaces :: CInt
+      let faceIndices = fromMaybe [] openfaces :: [CInt]
+          hasOpenFaces = maybe 0 (const 1) openfaces :: CInt
           faceCount = fromIntegral (length faceIndices) :: CInt
-       in ownSolid (withArray faceIndices $ \faceIndexArray -> [Cpp.block| TopoDS_Shape* {
+       in withArray faceIndices (\faceIndexArray -> [Cpp.block| TopoDS_Shape* {
     TopoDS_Shape* result = new TopoDS_Shape();
     TopoDS_Shape* input = $solid:solid;
     if (input == nullptr || input->IsNull()) {
@@ -205,4 +191,5 @@ offsetSolid' tolerance value join openFaces solid
     }
   return result;
   }|])
+          & ownSolid
           & propagateSolidColors solid

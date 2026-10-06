@@ -41,8 +41,7 @@ zSolid = fromPaths [ toPath $ rotate2D angle $ pathFrom 0 [
 xSolid = fromPaths [line 0 (V3 a b 0) | a <- [-w/2, w/2], b <- [-h/2,h/2]]
 
 
-fromPaths :: [Path] -> Solid
-fromPaths = foldMap (pad t . toShape . (offset t (1 :: CInt) :: Path -> Path))
+fromPaths = foldMap (pad t . toShape . offset t 1)
 
 w = 1
 h = 2

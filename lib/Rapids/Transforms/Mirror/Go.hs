@@ -8,27 +8,30 @@ import Control.Lens hiding (prism)
 import Linear
 import Rapids.Color
 import qualified Waterfall as W
+import Data.Data
+import Rapids.Transforms.Translate.Go
 
-class MirroredGo a b r | r -> a b where
-  mirroredGo :: Transform3D -> Transform3D -> r
+class MirroredGo a b (c :: Bool) r | r -> a b where
+  mirroredGo :: Proxy c -> Transform3D -> Transform3D -> r
 
-instance {-# OVERLAPPABLE #-} (Profunctor p, Functor g, PropagateColor a, W.Transformable b, a ~ t) => MirroredGo a b (Optic p g a b a b) where
-  mirroredGo forward backward = iso (propagateColor (runTransform3D forward)) (runTransform3D backward)
+instance {-# INCOHERENT #-} (Profunctor p, Functor g, PropagateColor a, W.Transformable b, TypesEq c a b, s ~ a, t ~ b)
+  => MirroredGo a b c (Optic p g s t a b) where
+  mirroredGo _ forward backward = iso (propagateColor (runTransform3D forward)) (runTransform3D backward)
 
-instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, MirroredGo a b r) => MirroredGo a b (d -> e -> f -> r) where
-  mirroredGo forward backward x y z =
+instance {-# INCOHERENT #-} (d ~ Double, e ~ Double, f ~ Double, MirroredGo a b c r) => MirroredGo a b c (d -> e -> f -> r) where
+  mirroredGo c forward backward x y z =
     let reflection = Transform3D (W.mirror (V3 x y z))
-     in mirroredGo (composeTransform3D forward reflection) (composeTransform3D reflection backward)
+     in mirroredGo c (composeTransform3D forward reflection) (composeTransform3D reflection backward)
 
-instance {-# OVERLAPPABLE #-} (d ~ Double, MirroredGo a b r) => MirroredGo a b (V3 d -> r) where
-  mirroredGo forward backward v =
+instance {-# OVERLAPS #-} (d ~ Double, MirroredGo a b c r) => MirroredGo a b c (V3 d -> r) where
+  mirroredGo c forward backward v =
     let reflection = Transform3D (W.mirror v)
-     in mirroredGo (composeTransform3D forward reflection) (composeTransform3D reflection backward)
+     in mirroredGo c (composeTransform3D forward reflection) (composeTransform3D reflection backward)
 
-instance {-# OVERLAPPABLE #-} (v ~ V3, MirroredGo a b r) => MirroredGo a b (E v -> r) where
-  mirroredGo forward backward (E e) =
+instance {-# OVERLAPS #-} (v ~ V3, MirroredGo a b c r) => MirroredGo a b c (E v -> r) where
+  mirroredGo c forward backward (E e) =
     let reflection = Transform3D (W.mirror (0 & e .~ 1))
-     in mirroredGo (composeTransform3D forward reflection) (composeTransform3D reflection backward)
+     in mirroredGo c (composeTransform3D forward reflection) (composeTransform3D reflection backward)
 
 class (W.Transformable t, Num t, PropagateColor t) => MirrorGo r t | r -> t where
   mirrorGo :: (t -> t) -> (V3 Double -> t -> t) -> r

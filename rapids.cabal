@@ -82,6 +82,7 @@ library
       StandaloneDeriving
       DeriveLift
       OverloadedLabels
+      LambdaCase
   extra-libraries:
       TKBool
       TKHLR

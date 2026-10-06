@@ -7,7 +7,9 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
   - `pad` generalizes Waterfall.prism turning any `shape` into a `Solid` with optional taperFrac:
     - `pad <x y> z <taperFrac> shape`
     - `pad v3 <taperFrac>`
-  - `offset amount <join> solid|shape|path|path2d`; for solids, `offset amount <join> <openfaces> solid` leaves the 1-based face indices in `openfaces :: [Int]` open.
+  - `offset amount <join> <openfaces> solid|shape|path|path2d`
+    - `join :: CInt` is 0,1,2 <https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html GeomAbs_JoinType>
+    - `openfaces :: [CInt]` 1-based indices of faces to remove ([freecad's thickness](https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Part_Thickness.md)). TODO interpret it as `openedges` for `shape|path|path2d` and adapt colorQuery.
   - `sweep path shape`
   - `sweepRuled (\shapeVertex -> path) shape`
   - `revolution <radians> shape`
