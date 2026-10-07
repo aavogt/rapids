@@ -143,15 +143,13 @@ instance Monoid MinMaxSumCount where
   mempty = MinMaxSumCount (1/0) (-(1/0)) 0 0
 
 -- | @boxProxy a b@ is a compound with two vertices at @a@ and @b@
-boxProxy :: V3 CDouble -> V3 CDouble -> Solid
-boxProxy (V3 x0 y0 z0) (V3 x1 y1 z1) = ownSolid
+boxProxy :: V3 Double -> V3 Double -> Solid
+boxProxy p0 p1 = ownSolid
   [Cpp.block| TopoDS_Shape* {
-    gp_Pnt lo($(double x0), $(double y0), $(double z0));
-    gp_Pnt hi($(double x1), $(double y1), $(double z1));
     BRep_Builder bb;
     TopoDS_Compound c;
     bb.MakeCompound(c);
-    bb.Add(c, BRepBuilderAPI_MakeVertex(lo));
-    bb.Add(c, BRepBuilderAPI_MakeVertex(hi));
+    bb.Add(c, BRepBuilderAPI_MakeVertex(*$pnt:p0));
+    bb.Add(c, BRepBuilderAPI_MakeVertex(*$pnt:p1));
     return new TopoDS_Shape(c);
   }|]
