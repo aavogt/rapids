@@ -6,6 +6,7 @@ module Rapids.AABB.Align where
 
 import Control.Monad.IO.Class (liftIO)
 import Foreign.Marshal.Array (allocaArray, peekArray)
+import Foreign.C.Types (CDouble)
 import InlineOCCT
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
@@ -22,7 +23,26 @@ import Rapids.Num
 import Rapids.AABB
 import Rapids.AABB.Lens
 
+C.context occtContext
+Cpp.include "<BRep_Builder.hxx>"
+Cpp.include "<BRepBuilderAPI_MakeVertex.hxx>"
+Cpp.include "<BRepBndLib.hxx>"
+Cpp.include "<Bnd_Box.hxx>"
+Cpp.include "<TopoDS_Compound.hxx>"
+Cpp.include "<TopoDS_Shape.hxx>"
+Cpp.include "<gp_Pnt.hxx>"
+
+
 -- * interface
+
+-- | @unitCube@ has the same aabb as 'unitCube'
+unitGap :: Solid
+unitGap = boxProxy 0 1
+
+-- | @centeredGap@ has the same aabb as 'centeredCube'
+centeredGap :: Solid
+centeredGap = boxProxy (-0.5) 0.5
+
 -- ** alignment where the first solid isn't added to the result
 
 -- | @stack ex a b@ moves @b@ along the x axis so the left side of @b@ is coplanar with @a@'s right side.
@@ -111,7 +131,7 @@ distribute (E el) solids = fromJust do
         & mapAccumL g 0
         & snd ]
 
--- * implementation detail
+-- * implementation details
 
 -- Data.Semigroup.Min can't do this because it needs `instance Bounded Double`,
 data MinMaxSumCount = MinMaxSumCount !Double !Double !Double Int
@@ -121,3 +141,17 @@ instance Semigroup MinMaxSumCount where
 
 instance Monoid MinMaxSumCount where
   mempty = MinMaxSumCount (1/0) (-(1/0)) 0 0
+
+-- | @boxProxy a b@ is a compound with two vertices at @a@ and @b@
+boxProxy :: V3 CDouble -> V3 CDouble -> Solid
+boxProxy (V3 x0 y0 z0) (V3 x1 y1 z1) = ownSolid
+  [Cpp.block| TopoDS_Shape* {
+    gp_Pnt lo($(double x0), $(double y0), $(double z0));
+    gp_Pnt hi($(double x1), $(double y1), $(double z1));
+    BRep_Builder bb;
+    TopoDS_Compound c;
+    bb.MakeCompound(c);
+    bb.Add(c, BRepBuilderAPI_MakeVertex(lo));
+    bb.Add(c, BRepBuilderAPI_MakeVertex(hi));
+    return new TopoDS_Shape(c);
+  }|]
