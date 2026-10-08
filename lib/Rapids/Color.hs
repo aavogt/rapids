@@ -540,7 +540,7 @@ mkStepWriterColor = do
 -- | @writeSTEPColor path solid@ is like @Waterfall.writeSTEP@ but also writes face colors and
 -- the source location notes left by 'tagLoc' and the color names (@$red@ ...)
 writeSTEPColor :: FilePath -> Solid -> IO ()
-writeSTEPColor out solid = do
+writeSTEPColor out !solid = do
   doc <- newXCAFDoc
   colorMap <- readIORef colorAttrsMap
   facePayloads <- newIORef []
