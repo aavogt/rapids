@@ -75,6 +75,8 @@ module Rapids.Color
     propagateSolidColors,
     OpC (..),
     leftColor,
+    CTree (..),
+    chamferSolidWithColors,
     Note,
     ColorKey,
     colorAttrsMap,
@@ -97,6 +99,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.StateVar
 import Data.These (These (..))
+import Data.Char (toUpper)
 import Data.Word (Word8)
 import Foreign hiding (rotate)
 import Foreign.C
@@ -120,6 +123,7 @@ import Waterfall.TwoD.Internal.Shape (Shape)
 import Data.List (unfoldr, transpose)
 import Control.Lens
 import qualified Data.Set as S
+import Numeric (showHex)
 
 C.context (occtContext <> Cpp.funCtx)
 Cpp.include "<TopExp_Explorer.hxx>"
@@ -130,6 +134,8 @@ Cpp.include "<TopoDS_Shape.hxx>"
 Cpp.include "<BRepTools_History.hxx>"
 Cpp.include "<TopTools_ListOfShape.hxx>"
 Cpp.include "<TopTools_ListIteratorOfListOfShape.hxx>"
+Cpp.include "<TopExp.hxx>"
+Cpp.include "<TopTools_IndexedDataMapOfShapeListOfShape.hxx>"
 Cpp.include "<TDocStd_Document.hxx>"
 Cpp.include "<XCAFDoc_ColorTool.hxx>"
 Cpp.include "<XCAFDoc_ShapeTool.hxx>"
@@ -148,13 +154,20 @@ Cpp.include "<TDF_LabelSequence.hxx>"
 Cpp.include "<TDF_Tool.hxx>"
 Cpp.include "<TCollection_AsciiString.hxx>"
 Cpp.include "<Quantity_Color.hxx>"
+Cpp.include "<XCAFDoc_LayerTool.hxx>"
+Cpp.include "<BRepFilletAPI_MakeChamfer.hxx>"
 Cpp.include "<TDataStd_Name.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 Cpp.include "<stdio.h>"
 
 type ColorKey = (Ptr (), CSize)
 
-type Note = These String (V3 CDouble)
+type Note = These String CTree
+
+data CTree
+  = CBranch CTree CTree
+  | CLeaf (V3 CDouble)
+  deriving (Eq, Show)
 
 data OpC
   = OpConstC (Maybe Note)
@@ -193,11 +206,46 @@ combineNote note mOld =
 combineColor :: V3 CDouble -> Maybe Note -> Note
 combineColor color mOld =
   case mOld of
-    Nothing -> That color
-    Just (This note) -> These note color
-    Just (That _) -> That color
-    Just (These note _) -> These note color
+    Nothing -> That (CLeaf color)
+    Just (This note) -> These note (CLeaf color)
+    Just (That _) -> That (CLeaf color)
+    Just (These note _) -> These note (CLeaf color)
 
+mergeColorTrees :: CTree -> CTree -> CTree
+mergeColorTrees left right
+  | left == right = left
+  | otherwise = CBranch left right
+
+mergeNotes :: Note -> Note -> Note
+mergeNotes (This note) (This _) = This note
+mergeNotes (This note) (That tree) = These note tree
+mergeNotes (This note) (These _ tree) = These note tree
+mergeNotes (That tree) (This note) = These note tree
+mergeNotes (These note tree) (This _) = These note tree
+mergeNotes (That left) (That right) = That (mergeColorTrees left right)
+mergeNotes (That left) (These note right) = These note (mergeColorTrees left right)
+mergeNotes (These note left) (That right) = These note (mergeColorTrees left right)
+mergeNotes (These note left) (These _ right) = These note (mergeColorTrees left right)
+
+firstColor :: CTree -> V3 CDouble
+firstColor (CLeaf color) = color
+firstColor (CBranch left _) = firstColor left
+
+checkerboardLayerName :: CTree -> String
+checkerboardLayerName (CLeaf _) = ""
+checkerboardLayerName (CBranch left right) = "CHECKERBOARD_" ++ layerExpression left ++ "_" ++ layerExpression right
+  where
+    layerExpression (CLeaf color) = colorHex color
+    layerExpression (CBranch a b) = "(" ++ layerExpression a ++ "_" ++ layerExpression b ++ ")"
+
+colorHex :: V3 CDouble -> String
+colorHex color = concatMap hexByte components
+  where
+    V3 r g b = normalizeColor color
+    components = [r, g, b]
+    hexByte component =
+      let digits = map toUpper (showHex (round (255 * component) :: Int) "")
+       in replicate (2 - length digits) '0' ++ digits
 normalizeColor :: V3 CDouble -> V3 CDouble
 normalizeColor color@(V3 r g b)
   | all inUnit [r, g, b] = color
@@ -524,6 +572,58 @@ withModifiedFaces_ history solid kFun =
         $fun:(void (*kFun)(void*, size_t, void*, size_t))(srcShapePtr, srcLocHash, genShapePtr, genLocHash);
       }
     }
+
+    TopTools_IndexedDataMapOfShapeListOfShape edgeFaces;
+    TopExp::MapShapesAndAncestors(*$solid:solid, TopAbs_EDGE, TopAbs_FACE, edgeFaces);
+    TopExp_Explorer edgeExplorer(*$solid:solid, TopAbs_EDGE);
+    for (; edgeExplorer.More(); edgeExplorer.Next()) {
+      const TopoDS_Shape& edge = edgeExplorer.Current();
+      if (!edgeFaces.Contains(edge)) {
+        continue;
+      }
+      const TopTools_ListOfShape& parents = edgeFaces.FindFromKey(edge);
+      const TopTools_ListOfShape& gens = hist->Generated(edge);
+      for (TopTools_ListIteratorOfListOfShape genIt(gens); genIt.More(); genIt.Next()) {
+        const TopoDS_Shape& genShape = genIt.Value();
+        if (genShape.ShapeType() != TopAbs_FACE) {
+          continue;
+        }
+        void* genShapePtr = (void*)genShape.TShape().get();
+        size_t genLocHash = genShape.Location().HashCode();
+        for (TopTools_ListIteratorOfListOfShape parentIt(parents); parentIt.More(); parentIt.Next()) {
+          const TopoDS_Shape& parent = parentIt.Value();
+          void* srcShapePtr = (void*)parent.TShape().get();
+          size_t srcLocHash = parent.Location().HashCode();
+          $fun:(void (*kFun)(void*, size_t, void*, size_t))(srcShapePtr, srcLocHash, genShapePtr, genLocHash);
+        }
+      }
+    }
+
+    TopTools_IndexedDataMapOfShapeListOfShape vertexFaces;
+    TopExp::MapShapesAndAncestors(*$solid:solid, TopAbs_VERTEX, TopAbs_FACE, vertexFaces);
+    TopExp_Explorer vertexExplorer(*$solid:solid, TopAbs_VERTEX);
+    for (; vertexExplorer.More(); vertexExplorer.Next()) {
+      const TopoDS_Shape& vertex = vertexExplorer.Current();
+      if (!vertexFaces.Contains(vertex)) {
+        continue;
+      }
+      const TopTools_ListOfShape& parents = vertexFaces.FindFromKey(vertex);
+      const TopTools_ListOfShape& gens = hist->Generated(vertex);
+      for (TopTools_ListIteratorOfListOfShape genIt(gens); genIt.More(); genIt.Next()) {
+        const TopoDS_Shape& genShape = genIt.Value();
+        if (genShape.ShapeType() != TopAbs_FACE) {
+          continue;
+        }
+        void* genShapePtr = (void*)genShape.TShape().get();
+        size_t genLocHash = genShape.Location().HashCode();
+        for (TopTools_ListIteratorOfListOfShape parentIt(parents); parentIt.More(); parentIt.Next()) {
+          const TopoDS_Shape& parent = parentIt.Value();
+          void* srcShapePtr = (void*)parent.TShape().get();
+          size_t srcLocHash = parent.Location().HashCode();
+          $fun:(void (*kFun)(void*, size_t, void*, size_t))(srcShapePtr, srcLocHash, genShapePtr, genLocHash);
+        }
+      }
+    }
   }|]
 
 -- | like 'Rapids.mkStepWriter', but each file is written with 'writeSTEPColor'
@@ -571,11 +671,51 @@ propagateColors :: Ptr () -> [Solid] -> IO ()
 propagateColors history _ | history == nullPtr = return ()
 propagateColors history solids = do
   colorMap <- readIORef colorAttrsMap
+  copiedRelations <- newIORef S.empty
   for_ solids \solid ->
-    withModifiedFaces_ history solid $ \srcShapePtr srcLocHash dstShapePtr dstLocHash ->
-      for_ (Map.lookup (srcShapePtr, srcLocHash) colorMap) \color ->
-        modifyIORef' colorAttrsMap $ \m -> Map.insert (dstShapePtr, dstLocHash) color m
+    withModifiedFaces_ history solid $ \srcShapePtr srcLocHash dstShapePtr dstLocHash -> do
+      let srcKey = (srcShapePtr, srcLocHash)
+          dstKey = (dstShapePtr, dstLocHash)
+          relation = (srcKey, dstKey)
+      isNew <- atomicModifyIORef' copiedRelations $ \seen ->
+        if relation `S.member` seen
+          then (seen, False)
+          else (S.insert relation seen, True)
+      if isNew
+        then for_ (Map.lookup srcKey colorMap) \attribute ->
+          modifyIORef' colorAttrsMap $
+            Map.insertWith (\new old -> mergeNotes old new) dstKey attribute
+        else pure ()
 
+-- | Chamfer a solid while retaining OCCT's source-to-result face history.
+chamferSolidWithColors :: CDouble -> Solid -> Solid
+chamferSolidWithColors distance source = unsafePerformIO do
+  resultRef <- newIORef Nothing
+  let kFun = curry $ \(resultPtr, historyPtr) -> do
+        let result = ownSolid (pure (castPtr resultPtr))
+        propagateColors historyPtr [source]
+        writeIORef resultRef (Just result)
+  liftIO [Cpp.block| void {
+    TopoDS_Shape* input = $solid:source;
+    if (input == nullptr || input->IsNull()) {
+      TopoDS_Shape* output = new TopoDS_Shape();
+      $fun:(void (*kFun)(void*, void*))(output, nullptr);
+      return;
+    }
+
+    BRepFilletAPI_MakeChamfer chamfer(*input);
+    TopExp_Explorer explorer(*input, TopAbs_EDGE);
+    for (; explorer.More(); explorer.Next()) {
+      chamfer.Add($(double distance), TopoDS::Edge(explorer.Current()));
+    }
+    TopoDS_Shape* output = new TopoDS_Shape(chamfer.Shape());
+    TopTools_ListOfShape arguments;
+    arguments.Append(*input);
+    Handle(BRepTools_History) history = new BRepTools_History(arguments, chamfer);
+    $fun:(void (*kFun)(void*, void*))(output, history.get());
+  }|]
+  result <- readIORef resultRef
+  maybe (error "chamferSolidWithColors: chamfer did not return a shape") pure result
 -- Returns a raw doc pointer you thread through
 newXCAFDoc :: IO (Ptr ())
 newXCAFDoc =
@@ -591,15 +731,16 @@ addShapeWithFaceData :: Ptr () -> Solid -> [(ColorKey, Note)] -> IO ()
 addShapeWithFaceData doc solid faceData = do
   let toParts ((shapePtr, locHash), payload) =
         case payload of
-          This note -> (shapePtr, locHash, 0 :: CInt, V3 0 0 0, note)
-          That rgb -> (shapePtr, locHash, 1 :: CInt, rgb, "")
-          These note rgb -> (shapePtr, locHash, 1 :: CInt, rgb, note)
+          This note -> (shapePtr, locHash, 0 :: CInt, V3 0 0 0, note, "")
+          That tree -> (shapePtr, locHash, 1 :: CInt, firstColor tree, "", checkerboardLayerName tree)
+          These note tree -> (shapePtr, locHash, 1 :: CInt, firstColor tree, note, checkerboardLayerName tree)
       parts = map toParts faceData
-      shapePtrs = map (\(p, _, _, _, _) -> p) parts
-      locHashes = map (\(_, h, _, _, _) -> h) parts
-      hasColors = map (\(_, _, hc, _, _) -> hc) parts
-      colors = concatMap (\(_, _, _, V3 r g b, _) -> [r, g, b]) parts
-      notes = map (\(_, _, _, _, n) -> n) parts
+      shapePtrs = map (\(p, _, _, _, _, _) -> p) parts
+      locHashes = map (\(_, h, _, _, _, _) -> h) parts
+      hasColors = map (\(_, _, hc, _, _, _) -> hc) parts
+      colors = concatMap (\(_, _, _, V3 r g b, _, _) -> [r, g, b]) parts
+      notes = map (\(_, _, _, _, n, _) -> n) parts
+      layers = map (\(_, _, _, _, _, layer) -> layer) parts
       n = fromIntegral (length faceData)
 
   withArray shapePtrs $ \faceShapePtrs ->
@@ -608,11 +749,14 @@ addShapeWithFaceData doc solid faceData = do
         withArray colors $ \colorArr ->
           withMany withCString notes $ \noteCStrs ->
             withArray noteCStrs $ \noteArr ->
-              [C.block| void {
+              withMany withCString layers $ \layerCStrs ->
+                withArray layerCStrs $ \layerArr ->
+                  [C.block| void {
     try {
       Handle(TDocStd_Document) docH((const TDocStd_Document*)$(void* doc));
       auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(docH->Main());
       auto colorTool = XCAFDoc_DocumentTool::ColorTool(docH->Main());
+      auto layerTool = XCAFDoc_DocumentTool::LayerTool(docH->Main());
       auto notesTool = XCAFDoc_DocumentTool::NotesTool(docH->Main());
 
       TDF_Label shapeLabel = shapeTool->AddShape(*$solid:solid, Standard_False);
@@ -626,6 +770,7 @@ addShapeWithFaceData doc solid faceData = do
       int*         hasColors  = $(int* faceHasColors);
       double*      colors     = $(double* colorArr);
       const char** notes      = $(const char** noteArr);
+      const char** layers     = $(const char** layerArr);
 
       TopExp_Explorer explorer(*$solid:solid, TopAbs_FACE);
       for (; explorer.More(); explorer.Next()) {
@@ -649,6 +794,10 @@ addShapeWithFaceData doc solid faceData = do
             colorTool->SetColor(faceLabel, c, XCAFDoc_ColorSurf);
           }
 
+          if (layers[i] != nullptr && layers[i][0] != '\0') {
+            layerTool->SetLayer(faceLabel, TCollection_ExtendedString(layers[i]));
+          }
+
           if (notes[i] != nullptr && notes[i][0] != '\0') {
             // Fallback for STEP export: persist note text as item name (NameMode),
             // in addition to XCAF notes metadata.
@@ -669,7 +818,6 @@ addShapeWithFaceData doc solid faceData = do
             }
           }
 
-
           break;
         }
       }
@@ -680,6 +828,7 @@ addShapeWithFaceData doc solid faceData = do
     }
   }|]
 
+
 writeXCAFToSTEP :: FilePath -> Ptr () -> IO ()
 writeXCAFToSTEP filepath doc =
   withCString filepath $ \fp ->
@@ -688,6 +837,7 @@ writeXCAFToSTEP filepath doc =
       Handle(TDocStd_Document) docH((const TDocStd_Document*)$(void* doc));
       STEPCAFControl_Writer writer;
       writer.SetColorMode(true);
+      writer.SetLayerMode(true);
       writer.Transfer(docH, STEPControl_AsIs);
 
       Handle(StepData_StepModel) model =

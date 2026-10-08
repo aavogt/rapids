@@ -44,6 +44,10 @@ executables:
     dependencies:
       - test
       - containers
+  chamfer:
+    main: chamfer.hs
+    dependencies:
+      - test
   sweepRuled:
     main: sweepRuled.hs
     dependencies:

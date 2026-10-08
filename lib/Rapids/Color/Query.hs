@@ -29,7 +29,7 @@ import Language.Haskell.TH (stringE)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Linear (V3 (..))
 import Numeric (readHex)
-import Rapids.Color (ColorKey, Note (..), colorAttrsMap)
+import Rapids.Color (ColorKey, CTree (..), Note (..), colorAttrsMap)
 import qualified System.IO.Unsafe
 import Waterfall (Path)
 import Waterfall.Internal.Solid (Solid)
@@ -205,13 +205,15 @@ lookupColor :: Map.Map ColorKey Note -> ColorKey -> Maybe RGB
 lookupColor attrs key = do
   note <- Map.lookup key attrs
   color <- case note of
-    That c -> Just c
-    These _ c -> Just c
+    That tree -> Just (treeColor tree)
+    These _ tree -> Just (treeColor tree)
     This _ -> Nothing
   let V3 r g b = color
   pure (toByte r, toByte g, toByte b)
   where
     toByte x = round (255 * x)
+    treeColor (CLeaf color) = color
+    treeColor (CBranch left _) = treeColor left
 
 type RGB = (Word8, Word8, Word8)
 

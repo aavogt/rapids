@@ -166,6 +166,7 @@ import Rapids.Color.AxisTriad
 import Data.Coerce
 import Waterfall.Internal.Path (Path(..))
 import Waterfall.TwoD.Internal.Path2D (Path2D(..))
+import Foreign.C
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to @$(basename $PWD).step@ and solid2 to @$(basename $PWD)0.step@
@@ -200,7 +201,7 @@ class FilletChamfer a where
 
 instance FilletChamfer Solid where
   fillet r solid = propagateSolidColors solid (W.roundFillet r solid)
-  chamfer r solid = propagateSolidColors solid (W.chamfer r solid)
+  chamfer r solid = chamferSolidWithColors (CDouble r) solid
 
 instance FilletChamfer Path where
   fillet = filletPath
