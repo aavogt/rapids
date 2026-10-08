@@ -200,7 +200,7 @@ class FilletChamfer a where
   chamfer :: Double -> a -> a
 
 instance FilletChamfer Solid where
-  fillet r solid = propagateSolidColors solid (W.roundFillet r solid)
+  fillet r solid = filletSolidWithColors (CDouble r) solid
   chamfer r solid = chamferSolidWithColors (CDouble r) solid
 
 instance FilletChamfer Path where

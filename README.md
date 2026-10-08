@@ -2,7 +2,7 @@
 
 Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-warren/opencascade-hs), where I add missing operations and other quality-of-life features:
 
-  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L8) `$red :: Solid -> Solid` also add source locations and propagate through to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker).
+  - [named colors including](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color.hs#L8) `$red :: Solid -> Solid` also add source locations and propagate through to `mkStepWriterColor :: IO (Solid -> IO FilePath)` for [aavogt/OCCT_XCAF_FacePicker](https://github.com/aavogt/OCCT_XCAF_FacePicker). Chamfers and fillets export nested checkerboard layers when generated faces have differently colored parent faces.
   - [colorQuery](https://github.com/aavogt/rapids/blob/main/lib/Rapids/Color/Query.hs#L243) finds vertex coordinates (`V3 Double`) on modified `Solid`s based on face colors.
   - `pad` generalizes Waterfall.prism turning any `shape` into a `Solid` with optional taperFrac:
     - `pad <x y> z <taperFrac> shape`

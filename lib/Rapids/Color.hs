@@ -77,6 +77,7 @@ module Rapids.Color
     leftColor,
     CTree (..),
     chamferSolidWithColors,
+    filletSolidWithColors,
     Note,
     ColorKey,
     colorAttrsMap,
@@ -156,14 +157,17 @@ Cpp.include "<TCollection_AsciiString.hxx>"
 Cpp.include "<Quantity_Color.hxx>"
 Cpp.include "<XCAFDoc_LayerTool.hxx>"
 Cpp.include "<BRepFilletAPI_MakeChamfer.hxx>"
+Cpp.include "<BRepFilletAPI_MakeFillet.hxx>"
 Cpp.include "<TDataStd_Name.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 Cpp.include "<stdio.h>"
 
 type ColorKey = (Ptr (), CSize)
 
+-- | Optional source note and a tree of one or more face colors.
 type Note = These String CTree
 
+-- | Color leaves become RGB values; branches encode nested checkerboard layers.
 data CTree
   = CBranch CTree CTree
   | CLeaf (V3 CDouble)
@@ -211,21 +215,29 @@ combineColor color mOld =
     Just (That _) -> That (CLeaf color)
     Just (These note _) -> These note (CLeaf color)
 
-mergeColorTrees :: CTree -> CTree -> CTree
-mergeColorTrees left right
-  | left == right = left
-  | otherwise = CBranch left right
+mergeHistoryNotes :: [Note] -> Note
+mergeHistoryNotes notes =
+  case (firstNote notes, balancedTree (nub (concatMap colorTrees notes))) of
+    (Just note, Just tree) -> These note tree
+    (Just note, Nothing) -> This note
+    (Nothing, Just tree) -> That tree
+    (Nothing, Nothing) -> error "mergeHistoryNotes: notes contain neither text nor colors"
+  where
+    firstNote [] = Nothing
+    firstNote (This note : _) = Just note
+    firstNote (That _ : rest) = firstNote rest
+    firstNote (These note _ : _) = Just note
 
-mergeNotes :: Note -> Note -> Note
-mergeNotes (This note) (This _) = This note
-mergeNotes (This note) (That tree) = These note tree
-mergeNotes (This note) (These _ tree) = These note tree
-mergeNotes (That tree) (This note) = These note tree
-mergeNotes (These note tree) (This _) = These note tree
-mergeNotes (That left) (That right) = That (mergeColorTrees left right)
-mergeNotes (That left) (These note right) = These note (mergeColorTrees left right)
-mergeNotes (These note left) (That right) = These note (mergeColorTrees left right)
-mergeNotes (These note left) (These _ right) = These note (mergeColorTrees left right)
+    colorTrees (This _) = []
+    colorTrees (That tree) = [tree]
+    colorTrees (These _ tree) = [tree]
+
+    balancedTree [] = Nothing
+    balancedTree [tree] = Just tree
+    balancedTree trees =
+      let middle = (length trees + 1) `div` 2
+          (left, right) = splitAt middle trees
+       in CBranch <$> balancedTree left <*> balancedTree right
 
 firstColor :: CTree -> V3 CDouble
 firstColor (CLeaf color) = color
@@ -257,13 +269,14 @@ normalizeColor color@(V3 r g b)
     clamp01 x = max 0 (min 1 x)
 
 type Off = V3 Int
+
 type P = V3 Word8
 
 kids :: Off -> [Off]
 kids (V3 a b c) =
-  [ V3 a' b c | a' <- push a ] ++
-  [ V3 a b' c | b' <- push b ] ++
-  [ V3 a b c' | c' <- push c ]
+  [V3 a' b c | a' <- push a]
+    ++ [V3 a b' c | b' <- push b]
+    ++ [V3 a b c' | c' <- push c]
   where
     push 0 = [1, -1]
     push d = [d + signum d]
@@ -281,10 +294,11 @@ near c0 = go (S.singleton (0, V3 0 0 0))
       Nothing -> []
       Just ((_, d), rest) ->
         let p = ctr + d
-        in if inside p
-             then fmap fromIntegral p
+         in if inside p
+              then
+                fmap fromIntegral p
                   : go (foldr (\o -> S.insert (quadrance o, o)) rest (kids d))
-             else go rest
+              else go rest
 
 -- | @setColor (V3 r g b)@ sets the color of every face. @r g b@ are either 0 to 1 or 0 to 255
 setColor :: V3 CDouble -> Solid -> Solid
@@ -672,6 +686,7 @@ propagateColors history _ | history == nullPtr = return ()
 propagateColors history solids = do
   colorMap <- readIORef colorAttrsMap
   copiedRelations <- newIORef S.empty
+  propagated <- newIORef Map.empty
   for_ solids \solid ->
     withModifiedFaces_ history solid $ \srcShapePtr srcLocHash dstShapePtr dstLocHash -> do
       let srcKey = (srcShapePtr, srcLocHash)
@@ -683,9 +698,15 @@ propagateColors history solids = do
           else (S.insert relation seen, True)
       if isNew
         then for_ (Map.lookup srcKey colorMap) \attribute ->
-          modifyIORef' colorAttrsMap $
-            Map.insertWith (\new old -> mergeNotes old new) dstKey attribute
+          modifyIORef' propagated $
+            Map.insertWith (++) dstKey [attribute]
         else pure ()
+  propagatedValues <- readIORef propagated
+  let updates =
+        Map.mapWithKey
+          (\key parents -> mergeHistoryNotes (maybe [] pure (Map.lookup key colorMap) ++ reverse parents))
+          propagatedValues
+  modifyIORef' colorAttrsMap (Map.union updates)
 
 -- | Chamfer a solid while retaining OCCT's source-to-result face history.
 chamferSolidWithColors :: CDouble -> Solid -> Solid
@@ -716,6 +737,38 @@ chamferSolidWithColors distance source = unsafePerformIO do
   }|]
   result <- readIORef resultRef
   maybe (error "chamferSolidWithColors: chamfer did not return a shape") pure result
+
+-- | Fillet a solid while retaining OCCT's source-to-result face history.
+filletSolidWithColors :: CDouble -> Solid -> Solid
+filletSolidWithColors radius source = unsafePerformIO do
+  resultRef <- newIORef Nothing
+  let kFun = curry $ \(resultPtr, historyPtr) -> do
+        let result = ownSolid (pure (castPtr resultPtr))
+        propagateColors historyPtr [source]
+        writeIORef resultRef (Just result)
+  liftIO
+    [Cpp.block| void {
+    TopoDS_Shape* input = $solid:source;
+    if (input == nullptr || input->IsNull()) {
+      TopoDS_Shape* output = new TopoDS_Shape();
+      $fun:(void (*kFun)(void*, void*))(output, nullptr);
+      return;
+    }
+
+    BRepFilletAPI_MakeFillet fillet(*input);
+    TopExp_Explorer explorer(*input, TopAbs_EDGE);
+    for (; explorer.More(); explorer.Next()) {
+      fillet.Add($(double radius), TopoDS::Edge(explorer.Current()));
+    }
+    TopoDS_Shape* output = new TopoDS_Shape(fillet.Shape());
+    TopTools_ListOfShape arguments;
+    arguments.Append(*input);
+    Handle(BRepTools_History) history = new BRepTools_History(arguments, fillet);
+    $fun:(void (*kFun)(void*, void*))(output, history.get());
+  }|]
+  result <- readIORef resultRef
+  maybe (error "filletSolidWithColors: fillet did not return a shape") pure result
+
 -- Returns a raw doc pointer you thread through
 newXCAFDoc :: IO (Ptr ())
 newXCAFDoc =
