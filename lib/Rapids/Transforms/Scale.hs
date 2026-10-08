@@ -7,7 +7,7 @@ import Data.Data
 -- *** scale
 -- **** 3D
 
--- |
+-- | Scale by one or more vectors
 --
 -- > scale
 -- >  ez z
