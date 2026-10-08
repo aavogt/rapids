@@ -29,7 +29,7 @@ import Language.Haskell.TH (stringE)
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
 import Linear (V3 (..))
 import Numeric (readHex)
-import Rapids.Color (ColorKey, CTree (..), Note (..), colorAttrsMap)
+import Rapids.Color (CTree (..), ColorKey, Note (..), colorAttrsMap)
 import qualified System.IO.Unsafe
 import Waterfall (Path)
 import Waterfall.Internal.Solid (Solid)
@@ -198,7 +198,6 @@ unsafeFind (Just wanted) solid = System.IO.Unsafe.unsafePerformIO $ do
       close r1 r2 && close g1 g2 && close b1 b2
 
     close a b = a == b -- abs (fromIntegral a - fromIntegral b :: Int) <= 1
-
     removeAt index xs = let (before, _ : after) = splitAt index xs in before ++ after
 
 lookupColor :: Map.Map ColorKey Note -> ColorKey -> Maybe RGB

@@ -94,13 +94,15 @@ where
 import Control.Applicative
 import Control.Monad (unless)
 import Control.Monad.IO.Class
+import Data.Char (toUpper)
 import Data.Foldable
 import Data.IORef
+import Data.List (nub, transpose, unfoldr)
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.Set as S
 import Data.StateVar
 import Data.These (These (..))
-import Data.Char (toUpper)
 import Data.Word (Word8)
 import Foreign hiding (rotate)
 import Foreign.C
@@ -109,11 +111,12 @@ import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
 import Language.Haskell.TH (ExpQ, loc_filename, loc_start, location, stringE)
 import Language.Haskell.TH.Syntax
-import Rapids.Reexports.Linear
+import Numeric (showHex)
 import OpenCascade.BOPAlgo.Operation (Operation (..))
 import qualified OpenCascade.BOPAlgo.Operation as BOPAlgo.Operation
 import qualified OpenCascade.BRepBuilderAPI.Copy as BRepBuilderAPI.Copy
 import Rapids.BoolOp
+import Rapids.Reexports.Linear
 import System.Directory
 import System.FilePath
 import System.IO.Unsafe
@@ -121,10 +124,6 @@ import Waterfall hiding (Shape, difference, intersection, intersections, union, 
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
 import Waterfall.Internal.Solid (Solid (Solid))
 import Waterfall.TwoD.Internal.Shape (Shape)
-import Data.List (unfoldr, transpose)
-import Control.Lens
-import qualified Data.Set as S
-import Numeric (showHex)
 
 C.context (occtContext <> Cpp.funCtx)
 Cpp.include "<TopExp_Explorer.hxx>"
@@ -258,6 +257,7 @@ colorHex color = concatMap hexByte components
     hexByte component =
       let digits = map toUpper (showHex (round (255 * component) :: Int) "")
        in replicate (2 - length digits) '0' ++ digits
+
 normalizeColor :: V3 CDouble -> V3 CDouble
 normalizeColor color@(V3 r g b)
   | all inUnit [r, g, b] = color
@@ -340,7 +340,7 @@ instance Monoid Transform3D where mempty = Transform3D id
 composeTransform3D :: Transform3D -> Transform3D -> Transform3D
 composeTransform3D (Transform3D f) (Transform3D g) = Transform3D (f . g)
 
-data Transforms3D = Transforms3D (forall a. Transformable a => a -> a) (forall a. Transformable a => a -> a)
+data Transforms3D = Transforms3D (forall a. (Transformable a) => a -> a) (forall a. (Transformable a) => a -> a)
 
 instance Semigroup Transforms3D where Transforms3D a b <> Transforms3D x y = Transforms3D (a . x) (y . b)
 
@@ -664,6 +664,7 @@ writeSTEPColor out !solid = do
   writeXCAFToSTEP out doc
 
 -- data Operation = Common | Fuse | Cut | Cut21 | Section | Unknown
+
 -- | n-ary boolean operations that propagate face colors from the inputs to the result
 intersections, unions, differences :: [Solid] -> Solid
 intersections = unsafePerformIO . withBooleans2 Common
@@ -716,7 +717,8 @@ chamferSolidWithColors distance source = unsafePerformIO do
         let result = ownSolid (pure (castPtr resultPtr))
         propagateColors historyPtr [source]
         writeIORef resultRef (Just result)
-  liftIO [Cpp.block| void {
+  liftIO
+    [Cpp.block| void {
     TopoDS_Shape* input = $solid:source;
     if (input == nullptr || input->IsNull()) {
       TopoDS_Shape* output = new TopoDS_Shape();
@@ -880,7 +882,6 @@ addShapeWithFaceData doc solid faceData = do
       fprintf(stderr, "addShapeWithFaceData: unknown C++ exception\n");
     }
   }|]
-
 
 writeXCAFToSTEP :: FilePath -> Ptr () -> IO ()
 writeXCAFToSTEP filepath doc =

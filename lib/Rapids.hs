@@ -25,16 +25,20 @@ module Rapids
     rectangle,
     circle,
     offset,
+
     -- ** specialized 'FilletChamfer'
-    chamferPath, filletPath,
+    chamferPath,
+    filletPath,
     projectPath,
     section,
     silhouette,
 
     -- * create 3D
+
     -- "Rapids.ConvexHull"
     hull,
-    pad, sweep,
+    pad,
+    sweep,
     sweepRuled,
     loft2,
 
@@ -112,7 +116,7 @@ module Rapids
     -- ** others
     revolution,
     unitSpiral,
-    FilletChamfer(..),
+    FilletChamfer (..),
 
     -- * consume 3d
     module Rapids.Statistics,
@@ -131,11 +135,15 @@ module Rapids
 where
 
 import Control.Applicative
+import Data.Coerce
 import Data.Fixed (mod')
 import Data.IORef
+import Foreign.C
 import Rapids.AABB
 import Rapids.AABB.Align
+import Rapids.AABB.Lens (aabb)
 import Rapids.Color
+import Rapids.Color.AxisTriad
 import Rapids.Color.Query (colorQuery)
 import Rapids.ConvexHull
 import Rapids.EnvDefaults
@@ -144,29 +152,25 @@ import Rapids.Num
 import Rapids.Offset
 import Rapids.Pad
 import Rapids.Path
+import Rapids.Path.CornerOp
 import Rapids.Path.Offset
 import Rapids.Path.Project
-import Rapids.Path.CornerOp
 import Rapids.Reexports
 import Rapids.Revolution
 import Rapids.Section
 import Rapids.Silhouette
 import Rapids.Spiral
 import Rapids.Statistics
+import Rapids.Sweep
 import Rapids.ToPath
 import Rapids.ToShape
-import Rapids.Sweep
 import Rapids.Transforms
 import System.Directory
 import System.FilePath
 import qualified Waterfall as W
+import Waterfall.Internal.Path (Path (..))
 import Waterfall.Solids hiding (Solid, centerOfMass, emptySolid, momentOfInertia, prism, volume)
-import Rapids.AABB.Lens (aabb)
-import Rapids.Color.AxisTriad
-import Data.Coerce
-import Waterfall.Internal.Path (Path(..))
-import Waterfall.TwoD.Internal.Path2D (Path2D(..))
-import Foreign.C
+import Waterfall.TwoD.Internal.Path2D (Path2D (..))
 
 -- | @main = do write <- mkStepWriter; write solid1; write solid2@
 -- writes solid1 to @$(basename $PWD).step@ and solid2 to @$(basename $PWD)0.step@
