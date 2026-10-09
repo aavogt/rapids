@@ -84,6 +84,8 @@ Previously I used f3d which only displays colors with the following configuratio
  
 ## examples
 
+http://aavogt.github.io/rapids/ has many examples.
+
 [hose barb union](https://gist.github.com/aavogt/6efaca22c6496ab21e6014f1c63a5a9b#file-main-hs)
 
 ### loading step file, vertex convex hull
