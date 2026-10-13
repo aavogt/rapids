@@ -7,7 +7,7 @@ main = do
   if actual <= 0 || expected <= 0 || abs (actual - expected) > 0.01 * max actual expected
     then error "single-edge round-cap and two-edge offsets differ by more than 1%"
     else pure ()
-  writeSTEP "volume_offset.step" ySolid
+  writeSTEP "path_offset.step" ySolid
 
 
 ySolid :: Solid

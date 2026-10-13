@@ -1,12 +1,21 @@
 -- | Planar offsets of planar wires and faces.
-module Rapids.Path.Offset where
+module Rapids.Path.Offset
+  ( offsetPath,
+    offsetPathSide,
+    offsetShape,
+    offsetPath2D,
+    offsetPathArc,
+    offsetPath2DArc,
+    offsetShapeArc,
+  )
+where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.Acquire (mkAcquire)
 import Data.Coerce (coerce)
 import Data.Function
 import Foreign (Ptr)
-import Foreign.C.Types (CDouble, CInt)
+import Foreign.C.Types (CDouble, CInt, CBool)
 import InlineOCCT
   ( c_deleteTopoDSShape,
     c_deleteTopoDSWire,
@@ -43,14 +52,17 @@ Cpp.include "<TopoDS_Shape.hxx>"
 Cpp.include "<TopoDS_Wire.hxx>"
 
 -- | Offset a planar @TopoDS_Wire@, preserving its plane.
-offsetPath ::
-  -- | amount
-  CDouble ->
-  -- | 0 arc; 1 tangent; 2 intersection
-  CInt ->
-  Path ->
-  Path
-offsetPath amount join input = propagatePathEdgeColors leftColor input $
+offsetPath :: CDouble -> CInt -> Path -> Path
+offsetPath amount join = offsetPathWithOpenResult amount join 0
+
+-- | Offset one side of an open planar wire. The sign of @amount@ selects the
+-- side; if OCCT returns a compound, its first wire is used. @join@ selects
+-- how corners are treated (see 'offsetPath').
+offsetPathSide :: CDouble -> CInt -> Path -> Path
+offsetPathSide amount join = offsetPathWithOpenResult amount join 1
+
+offsetPathWithOpenResult :: CDouble -> CInt -> CBool -> Path -> Path
+offsetPathWithOpenResult amount join openResult input = propagatePathEdgeColors leftColor input $
   [Cpp.block| TopoDS_Wire* {
     TopoDS_Wire* spine = $path:input;
     if (spine == nullptr || spine->IsNull()) {
@@ -58,69 +70,84 @@ offsetPath amount join input = propagatePathEdgeColors leftColor input $
     }
 
     try {
-      TopExp_Explorer edgeExplorer(*spine, TopAbs_EDGE);
-      if (!edgeExplorer.More()) {
-        return nullptr;
-      }
-      TopoDS_Edge edge = TopoDS::Edge(edgeExplorer.Current());
-      edgeExplorer.Next();
-      if (!edgeExplorer.More()) {
-        BRepAdaptor_Curve curve(edge);
-        gp_Pnt start = curve.Value(curve.FirstParameter());
-        gp_Pnt end = curve.Value(curve.LastParameter());
-        gp_Vec tangent(start, end);
-        if (tangent.SquareMagnitude() <= 1e-24) {
+      const bool isOpenResult = $(bool openResult);
+      if (!isOpenResult) {
+        TopExp_Explorer edgeExplorer(*spine, TopAbs_EDGE);
+        if (!edgeExplorer.More()) {
           return nullptr;
         }
+        TopoDS_Edge edge = TopoDS::Edge(edgeExplorer.Current());
+        edgeExplorer.Next();
+        if (!edgeExplorer.More()) {
+          BRepAdaptor_Curve curve(edge);
+          gp_Pnt start = curve.Value(curve.FirstParameter());
+          gp_Pnt end = curve.Value(curve.LastParameter());
+          gp_Vec tangent(start, end);
+          if (tangent.SquareMagnitude() <= 1e-24) {
+            return nullptr;
+          }
 
-        const double radius = std::fabs($(double amount));
-        if (radius <= 1e-12) {
-          return new TopoDS_Wire(*spine);
-        }
+          const double radius = std::fabs($(double amount));
+          if (radius <= 1e-12) {
+            return new TopoDS_Wire(*spine);
+          }
 
-        gp_Vec travel = tangent;
-        travel.Normalize();
-        gp_Vec planeNormal(0.0, 0.0, 1.0);
-        if (tangent.Crossed(planeNormal).SquareMagnitude() <= 1e-24) {
-          planeNormal = gp_Vec(1.0, 0.0, 0.0);
-        }
-        gp_Vec side = planeNormal.Crossed(tangent);
-        side.Normalize();
-        side *= radius;
+          gp_Vec travel = tangent;
+          travel.Normalize();
+          gp_Vec planeNormal(0.0, 0.0, 1.0);
+          if (tangent.Crossed(planeNormal).SquareMagnitude() <= 1e-24) {
+            planeNormal = gp_Vec(1.0, 0.0, 0.0);
+          }
+          gp_Vec offsetVector = planeNormal.Crossed(tangent);
+          offsetVector.Normalize();
+          offsetVector *= radius;
 
-        gp_Pnt startLeft = start.Translated(side);
-        gp_Pnt endLeft = end.Translated(side);
-        gp_Pnt startRight = start.Translated(-side);
-        gp_Pnt endRight = end.Translated(-side);
-        gp_Pnt endCapMid = end.Translated(travel * radius);
-        gp_Pnt startCapMid = start.Translated(-travel * radius);
-        BRepBuilderAPI_MakeWire wire;
-        wire.Add(BRepBuilderAPI_MakeEdge(startLeft, endLeft).Edge());
-        wire.Add(BRepBuilderAPI_MakeEdge(
-            GC_MakeArcOfCircle(endLeft, endCapMid, endRight).Value()).Edge());
-        wire.Add(BRepBuilderAPI_MakeEdge(endRight, startRight).Edge());
-        wire.Add(BRepBuilderAPI_MakeEdge(
-            GC_MakeArcOfCircle(startRight, startCapMid, startLeft).Value()).Edge());
-        if (!wire.IsDone()) {
-          return nullptr;
+          gp_Pnt startLeft = start.Translated(offsetVector);
+          gp_Pnt endLeft = end.Translated(offsetVector);
+          gp_Pnt startRight = start.Translated(-offsetVector);
+          gp_Pnt endRight = end.Translated(-offsetVector);
+          gp_Pnt endCapMid = end.Translated(travel * radius);
+          gp_Pnt startCapMid = start.Translated(-travel * radius);
+          BRepBuilderAPI_MakeWire wire;
+          wire.Add(BRepBuilderAPI_MakeEdge(startLeft, endLeft).Edge());
+          wire.Add(BRepBuilderAPI_MakeEdge(
+              GC_MakeArcOfCircle(endLeft, endCapMid, endRight).Value()).Edge());
+          wire.Add(BRepBuilderAPI_MakeEdge(endRight, startRight).Edge());
+          wire.Add(BRepBuilderAPI_MakeEdge(
+              GC_MakeArcOfCircle(startRight, startCapMid, startLeft).Value()).Edge());
+          if (!wire.IsDone()) {
+            return nullptr;
+          }
+          return new TopoDS_Wire(wire.Wire());
         }
-        return new TopoDS_Wire(wire.Wire());
       }
 
-      BRepOffsetAPI_MakeOffset offset(
-          *spine,
+      BRepOffsetAPI_MakeOffset offset;
+      offset.Init(
           static_cast<GeomAbs_JoinType>($(int join)),
-          Standard_False);
+          isOpenResult ? Standard_True : Standard_False);
+      offset.AddWire(*spine);
       offset.Perform($(double amount));
       if (!offset.IsDone()) {
         return nullptr;
       }
 
       const TopoDS_Shape& result = offset.Shape();
-      if (result.IsNull() || result.ShapeType() != TopAbs_WIRE) {
+      if (result.IsNull()) {
         return nullptr;
       }
-      return new TopoDS_Wire(TopoDS::Wire(result));
+      if (result.ShapeType() == TopAbs_WIRE) {
+        return new TopoDS_Wire(TopoDS::Wire(result));
+      }
+      if (result.ShapeType() != TopAbs_COMPOUND) {
+        return nullptr;
+      }
+      // Path represents a single wire; use the first wire from compounds.
+      TopExp_Explorer wireExplorer(result, TopAbs_WIRE);
+      if (!wireExplorer.More()) {
+        return nullptr;
+      }
+      return new TopoDS_Wire(TopoDS::Wire(wireExplorer.Current()));
     } catch (...) {
       return nullptr;
     }
