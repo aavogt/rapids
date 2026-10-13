@@ -164,6 +164,7 @@ import Rapids.Statistics
 import Rapids.Sweep
 import Rapids.ToPath
 import Rapids.ToShape
+import Rapids.ToV3
 import Rapids.Transforms
 import System.Directory
 import System.FilePath
@@ -185,6 +186,11 @@ mkStepWriter = do
     let out = prefix ++ maybe "" show count ++ ".step"
     writeSTEP out solid
     return out
+
+-- | `rotationFromTo x y` rotates `x` to `y` around the axis `cross x y` 
+rotationFromTo :: (ToV3 a, ToV3 b) => a -> b -> Quaternion Double
+rotationFromTo x y = q (toV3 x) * q (toV3 y) & normalize & _e %~ (1 - ) & normalize
+        where q = normalize . Quaternion 0
 
 -- | @frustum d1 d2 h@ has a @d1@ diameter cirlein the xy plane (z=0) and a @d2@ diameter in the z=@h@ plane.
 frustum :: Double -> Double -> Double -> Solid
