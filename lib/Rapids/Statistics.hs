@@ -5,6 +5,8 @@ module Rapids.Statistics (
   volume,
   centerOfMass,
   momentOfInertia,
+  momentOfInertiaMatrix,
+  principalMomentsOfInertia,
   -- * split compounds
   volumes,
   centersOfMass,
@@ -21,8 +23,7 @@ import qualified Language.C.Inline.Cpp as Cpp
 import qualified Language.C.Inline as C
 import Waterfall (Solid)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
-import Linear (V3 (..))
-import Data.Text (center)
+import Linear (M33, V3 (..))
 
 C.context occtContext
 Cpp.include "<BRep_Builder.hxx>"
@@ -42,6 +43,9 @@ Cpp.include "<TopoDS.hxx>"
 Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 
+Cpp.include "<GProp_PrincipalProps.hxx>"
+Cpp.include "<gp_Mat.hxx>"
+Cpp.include "<gp_Vec.hxx>"
 -- | Compute volume by summing the volumes of all solid components.
 volume :: Solid -> Double
 volume solid = unsafeFromAcquire $ do
@@ -116,6 +120,78 @@ centersOfMass solid = unsafeFromAcquire $ liftIO $ do
   allocaArray (3 * count) $ \output -> do
     writeCentersOfMass solid output
     triples . map realToFrac <$> peekArray (3 * count) output
+
+
+-- | The inertia tensor about the solid's center of mass, in world XYZ axes.
+momentOfInertiaMatrix :: Solid -> M33 Double
+momentOfInertiaMatrix solid = unsafeFromAcquire $ liftIO $ allocaArray 9 $ \output -> do
+  [Cpp.block| void {
+    TopoDS_Shape* input = $solid:solid;
+    GProp_GProps props;
+    bool hasSolids = false;
+    if (input != nullptr && !input->IsNull()) {
+      for (TopExp_Explorer solids(*input, TopAbs_SOLID);
+           solids.More(); solids.Next()) {
+        GProp_GProps component;
+        BRepGProp::VolumeProperties(
+          solids.Current(), component, Standard_False, Standard_False, Standard_False);
+        props.Add(component);
+        hasSolids = true;
+      }
+    }
+
+    double* output = $(double *output);
+    if (!hasSolids) {
+      for (int i = 0; i < 9; ++i) output[i] = 0.0;
+      return;
+    }
+    gp_Mat matrix = props.MatrixOfInertia();
+    for (int row = 1; row <= 3; ++row) {
+      for (int col = 1; col <= 3; ++col) {
+        output[(row - 1) * 3 + col - 1] = matrix.Value(row, col);
+      }
+    }
+  }|]
+  asM33 . map realToFrac <$> peekArray 9 output
+
+-- | Principal moments and their corresponding unit principal axes.
+-- The matrix columns are the eigenvectors, so @transpose axes !*! inertia !*! axes@
+-- is diagonal with the returned moments on its diagonal.
+principalMomentsOfInertia :: Solid -> (V3 Double, M33 Double)
+principalMomentsOfInertia solid = unsafeFromAcquire $ liftIO $ allocaArray 12 $ \output -> do
+  [Cpp.block| void {
+    TopoDS_Shape* input = $solid:solid;
+    GProp_GProps props;
+    bool hasSolids = false;
+    if (input != nullptr && !input->IsNull()) {
+      for (TopExp_Explorer solids(*input, TopAbs_SOLID);
+           solids.More(); solids.Next()) {
+        GProp_GProps component;
+        BRepGProp::VolumeProperties(
+          solids.Current(), component, Standard_False, Standard_False, Standard_False);
+        props.Add(component);
+        hasSolids = true;
+      }
+    }
+
+    double* output = $(double *output);
+    if (!hasSolids) {
+      for (int i = 0; i < 12; ++i) output[i] = 0.0;
+      output[3] = output[7] = output[11] = 1.0;
+      return;
+    }
+
+    GProp_PrincipalProps principal = props.PrincipalProperties();
+    principal.Moments(output[0], output[1], output[2]);
+    const gp_Vec& first = principal.FirstAxisOfInertia();
+    const gp_Vec& second = principal.SecondAxisOfInertia();
+    const gp_Vec& third = principal.ThirdAxisOfInertia();
+    output[3] = first.X(); output[4] = second.X(); output[5] = third.X();
+    output[6] = first.Y(); output[7] = second.Y(); output[8] = third.Y();
+    output[9] = first.Z(); output[10] = second.Z(); output[11] = third.Z();
+  }|]
+  values <- map realToFrac <$> peekArray 12 output
+  pure $ asPrincipalDecomposition values
 
 -- | @momentOfInertia center axis solid@
 --
@@ -252,3 +328,12 @@ triples :: [Double] -> [V3 Double]
 triples [] = []
 triples (x : y : z : rest) = V3 x y z : triples rest
 triples _ = error "OCCT returned an invalid list of centers of mass"
+asM33 :: [Double] -> M33 Double
+asM33 [xx, xy, xz, yx, yy, yz, zx, zy, zz] =
+  V3 (V3 xx xy xz) (V3 yx yy yz) (V3 zx zy zz)
+asM33 _ = error "OCCT returned an invalid inertia matrix"
+
+asPrincipalDecomposition :: [Double] -> (V3 Double, M33 Double)
+asPrincipalDecomposition [ix, iy, iz, ax, bx, cx, ay, by, cy, az, bz, cz] =
+  (V3 ix iy iz, V3 (V3 ax bx cx) (V3 ay by cy) (V3 az bz cz))
+asPrincipalDecomposition _ = error "OCCT returned an invalid inertia eigendecomposition"
