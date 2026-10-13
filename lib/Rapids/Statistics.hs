@@ -43,9 +43,10 @@ Cpp.include "<TopoDS.hxx>"
 Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
 
-Cpp.include "<GProp_PrincipalProps.hxx>"
 Cpp.include "<gp_Mat.hxx>"
-Cpp.include "<gp_Vec.hxx>"
+Cpp.include "<math_Jacobi.hxx>"
+Cpp.include "<math_Matrix.hxx>"
+Cpp.include "<math_Vector.hxx>"
 -- | Compute volume by summing the volumes of all solid components.
 volume :: Solid -> Double
 volume solid = unsafeFromAcquire $ do
@@ -122,76 +123,41 @@ centersOfMass solid = unsafeFromAcquire $ liftIO $ do
     triples . map realToFrac <$> peekArray (3 * count) output
 
 
--- | The inertia tensor about the solid's center of mass, in world XYZ axes.
+-- | Inertia tensor about the world-coordinate origin, in world XYZ axes.
+-- Translating the solid therefore changes this tensor by the parallel axis theorem.
 momentOfInertiaMatrix :: Solid -> M33 Double
 momentOfInertiaMatrix solid = unsafeFromAcquire $ liftIO $ allocaArray 9 $ \output -> do
-  [Cpp.block| void {
-    TopoDS_Shape* input = $solid:solid;
-    GProp_GProps props;
-    bool hasSolids = false;
-    if (input != nullptr && !input->IsNull()) {
-      for (TopExp_Explorer solids(*input, TopAbs_SOLID);
-           solids.More(); solids.Next()) {
-        GProp_GProps component;
-        BRepGProp::VolumeProperties(
-          solids.Current(), component, Standard_False, Standard_False, Standard_False);
-        props.Add(component);
-        hasSolids = true;
-      }
-    }
-
-    double* output = $(double *output);
-    if (!hasSolids) {
-      for (int i = 0; i < 9; ++i) output[i] = 0.0;
-      return;
-    }
-    gp_Mat matrix = props.MatrixOfInertia();
-    for (int row = 1; row <= 3; ++row) {
-      for (int col = 1; col <= 3; ++col) {
-        output[(row - 1) * 3 + col - 1] = matrix.Value(row, col);
-      }
-    }
-  }|]
+  writeMomentOfInertiaMatrix solid output
   asM33 . map realToFrac <$> peekArray 9 output
 
--- | Principal moments and their corresponding unit principal axes.
+-- | Principal moments and their corresponding unit principal axes about the origin.
 -- The matrix columns are the eigenvectors, so @transpose axes !*! inertia !*! axes@
 -- is diagonal with the returned moments on its diagonal.
 principalMomentsOfInertia :: Solid -> (V3 Double, M33 Double)
-principalMomentsOfInertia solid = unsafeFromAcquire $ liftIO $ allocaArray 12 $ \output -> do
-  [Cpp.block| void {
-    TopoDS_Shape* input = $solid:solid;
-    GProp_GProps props;
-    bool hasSolids = false;
-    if (input != nullptr && !input->IsNull()) {
-      for (TopExp_Explorer solids(*input, TopAbs_SOLID);
-           solids.More(); solids.Next()) {
-        GProp_GProps component;
-        BRepGProp::VolumeProperties(
-          solids.Current(), component, Standard_False, Standard_False, Standard_False);
-        props.Add(component);
-        hasSolids = true;
+principalMomentsOfInertia solid = unsafeFromAcquire $ liftIO $ allocaArray 9 $ \tensorOutput -> do
+  writeMomentOfInertiaMatrix solid tensorOutput
+  allocaArray 12 $ \output -> do
+    [Cpp.block| void {
+      double* tensor = $(double *tensorOutput);
+      math_Matrix matrix(1, 3, 1, 3);
+      for (int row = 1; row <= 3; ++row) {
+        for (int col = 1; col <= 3; ++col) {
+          matrix(row, col) = tensor[(row - 1) * 3 + col - 1];
+        }
       }
-    }
-
-    double* output = $(double *output);
-    if (!hasSolids) {
-      for (int i = 0; i < 12; ++i) output[i] = 0.0;
-      output[3] = output[7] = output[11] = 1.0;
-      return;
-    }
-
-    GProp_PrincipalProps principal = props.PrincipalProperties();
-    principal.Moments(output[0], output[1], output[2]);
-    const gp_Vec& first = principal.FirstAxisOfInertia();
-    const gp_Vec& second = principal.SecondAxisOfInertia();
-    const gp_Vec& third = principal.ThirdAxisOfInertia();
-    output[3] = first.X(); output[4] = second.X(); output[5] = third.X();
-    output[6] = first.Y(); output[7] = second.Y(); output[8] = third.Y();
-    output[9] = first.Z(); output[10] = second.Z(); output[11] = third.Z();
-  }|]
-  values <- map realToFrac <$> peekArray 12 output
-  pure $ asPrincipalDecomposition values
+      math_Jacobi eigen(matrix);
+      const math_Vector& moments = eigen.Values();
+      const math_Matrix& axes = eigen.Vectors();
+      double* output = $(double *output);
+      for (int i = 1; i <= 3; ++i) output[i - 1] = moments(i);
+      for (int row = 1; row <= 3; ++row) {
+        for (int col = 1; col <= 3; ++col) {
+          output[3 + (row - 1) * 3 + col - 1] = axes.Value(row, col);
+        }
+      }
+    }|]
+    values <- map realToFrac <$> peekArray 12 output
+    pure $ asPrincipalDecomposition values
 
 -- | @momentOfInertia center axis solid@
 --
@@ -317,6 +283,43 @@ writeMomentsOfInertia solid output cx cy cz ax ay az = [Cpp.block| void {
     BRepGProp::VolumeProperties(
       solids.Current(), props, Standard_False, Standard_False, Standard_False);
     output[index++] = props.MomentOfInertia(inertiaAxis);
+  }
+}|]
+
+writeMomentOfInertiaMatrix :: Solid -> Ptr CDouble -> IO ()
+writeMomentOfInertiaMatrix solid output = [Cpp.block| void {
+  TopoDS_Shape* input = $solid:solid;
+  GProp_GProps props;
+  bool hasSolids = false;
+  if (input != nullptr && !input->IsNull()) {
+    for (TopExp_Explorer solids(*input, TopAbs_SOLID);
+         solids.More(); solids.Next()) {
+      GProp_GProps component;
+      BRepGProp::VolumeProperties(
+        solids.Current(), component, Standard_False, Standard_False, Standard_False);
+      props.Add(component);
+      hasSolids = true;
+    }
+  }
+
+  double* output = $(double *output);
+  if (!hasSolids) {
+    for (int i = 0; i < 9; ++i) output[i] = 0.0;
+    return;
+  }
+
+  gp_Mat matrix = props.MatrixOfInertia();
+  gp_Pnt center = props.CentreOfMass();
+  const double x = center.X(), y = center.Y(), z = center.Z();
+  const double mass = props.Mass();
+  const double coordinates[3] = {x, y, z};
+  const double distanceSquared = x * x + y * y + z * z;
+  for (int row = 1; row <= 3; ++row) {
+    for (int col = 1; col <= 3; ++col) {
+      const double parallelAxis = mass * (
+        (row == col ? distanceSquared : 0.0) - coordinates[row - 1] * coordinates[col - 1]);
+      output[(row - 1) * 3 + col - 1] = matrix.Value(row, col) + parallelAxis;
+    }
   }
 }|]
 
