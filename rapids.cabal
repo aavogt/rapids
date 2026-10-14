@@ -85,6 +85,7 @@ library
       OverloadedLabels
       LambdaCase
   extra-libraries:
+      TKGeomAlgo
       TKBool
       TKHLR
   pkgconfig-depends:

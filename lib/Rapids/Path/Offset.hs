@@ -2,6 +2,7 @@
 module Rapids.Path.Offset
   ( offsetPath,
     offsetPathSide,
+    offsetPathSides,
     offsetShape,
     offsetPath2D,
     offsetPathArc,
@@ -15,6 +16,7 @@ import Data.Acquire (mkAcquire)
 import Data.Coerce (coerce)
 import Data.Function
 import Foreign (Ptr)
+import Foreign.Marshal.Array (withArray)
 import Foreign.C.Types (CDouble, CInt, CBool)
 import InlineOCCT
   ( c_deleteTopoDSShape,
@@ -34,6 +36,17 @@ import Rapids.Color
 import Waterfall.TwoD.Internal.Shape (Shape (..))
 
 C.context occtContext
+Cpp.include "<BRepOffsetAPI_MakePipeShell.hxx>"
+Cpp.include "<BRepBuilderAPI_TransitionMode.hxx>"
+Cpp.include "<BRepGProp.hxx>"
+Cpp.include "<GProp_GProps.hxx>"
+Cpp.include "<Law_Interpol.hxx>"
+Cpp.include "<TColgp_Array1OfPnt2d.hxx>"
+Cpp.include "<TopExp.hxx>"
+Cpp.include "<TopTools_ListIteratorOfListOfShape.hxx>"
+Cpp.include "<Precision.hxx>"
+Cpp.include "<gp_Dir.hxx>"
+Cpp.include "<gp_Pnt2d.hxx>"
 Cpp.include "<BRepOffsetAPI_MakeOffset.hxx>"
 Cpp.include "<GeomAbs_JoinType.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
@@ -60,6 +73,92 @@ offsetPath amount join = offsetPathWithOpenResult amount join 0
 -- how corners are treated (see 'offsetPath').
 offsetPathSide :: CDouble -> CInt -> Path -> Path
 offsetPathSide amount join = offsetPathWithOpenResult amount join 1
+
+-- | Offset one side of an open planar wire using thicknesses sampled evenly
+-- along its length. At least two values define an interpolated law from the
+-- start to the end of the path. A single value is equivalent to
+-- 'offsetPathSide'; an empty list produces an empty path.
+offsetPathSides :: [CDouble] -> CInt -> Path -> Path
+offsetPathSides [] _ _ = mempty
+offsetPathSides [amount] join input = offsetPathSide amount join input
+offsetPathSides amounts join input =
+  propagateSideOffsetColors input $ ownPath $ withArray amounts $ \amountArray ->
+    [Cpp.block| TopoDS_Wire* {
+      TopoDS_Wire* spine = $path:input;
+      const double* thicknesses = $(double *amountArray);
+      const int count = $(int sampleCount);
+      if (spine == nullptr || spine->IsNull() || count < 2) {
+        return nullptr;
+      }
+
+      try {
+        TopoDS_Vertex spineStart, spineEnd;
+        TopExp::Vertices(*spine, spineStart, spineEnd);
+        if (spineStart.IsNull() || spineEnd.IsNull()) {
+          return nullptr;
+        }
+
+        GProp_GProps properties;
+        BRepGProp::LinearProperties(*spine, properties);
+        const double spineLength = properties.Mass();
+        if (!(spineLength > Precision::Confusion())) {
+          return nullptr;
+        }
+
+        TColgp_Array1OfPnt2d points(1, count);
+        for (int i = 0; i < count; ++i) {
+          const double parameter = spineLength * i / (count - 1);
+          points.SetValue(i + 1, gp_Pnt2d(parameter, thicknesses[i]));
+        }
+
+        Handle(Law_Interpol) law = new Law_Interpol();
+        law->Set(points, Standard_False);
+
+        const TopoDS_Edge profileEdge = BRepBuilderAPI_MakeEdge(
+            gp_Pnt(0.0, 0.0, 0.0), gp_Pnt(0.0, 1.0, 0.0)).Edge();
+        TopoDS_Vertex profileStart, profileEnd;
+        TopExp::Vertices(profileEdge, profileStart, profileEnd);
+        if (profileEnd.IsNull()) {
+          return nullptr;
+        }
+
+        BRepBuilderAPI_MakeWire profileBuilder(profileEdge);
+        if (!profileBuilder.IsDone()) {
+          return nullptr;
+        }
+        const TopoDS_Wire profile = profileBuilder.Wire();
+
+        BRepOffsetAPI_MakePipeShell pipe(*spine);
+        pipe.SetMode(gp_Dir(0.0, 0.0, 1.0));
+        pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
+        pipe.SetLaw(profile, law, spineStart, Standard_False, Standard_False);
+        pipe.Build();
+        if (!pipe.IsDone()) {
+          return nullptr;
+        }
+
+        const TopTools_ListOfShape& generated = pipe.Generated(profileEnd);
+        BRepBuilderAPI_MakeWire wire;
+        for (TopTools_ListIteratorOfListOfShape it(generated); it.More(); it.Next()) {
+          if (it.Value().ShapeType() == TopAbs_EDGE) {
+            wire.Add(TopoDS::Edge(it.Value()));
+          }
+        }
+        if (!wire.IsDone()) {
+          return nullptr;
+        }
+        return new TopoDS_Wire(wire.Wire());
+      } catch (...) {
+        return nullptr;
+      }
+    } |]
+  where
+    sampleCount = fromIntegral (length amounts) :: CInt
+
+propagateSideOffsetColors :: Path -> Path -> Path
+propagateSideOffsetColors input output = case output of
+  Path (ComplexRawPath _) -> propagatePathEdgeColors leftColor input output
+  _ -> output
 
 offsetPathWithOpenResult :: CDouble -> CInt -> CBool -> Path -> Path
 offsetPathWithOpenResult amount join openResult input = propagatePathEdgeColors leftColor input $
