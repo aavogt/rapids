@@ -48,8 +48,10 @@ Cpp.include "<gp_Pnt.hxx>"
 -- | @sweepRuled (\\ _shapeVertex -> path) shape = sweep path shape@ at least for shapes with straight edges.
 --
 -- sweepRuled creates ruled surfaces between adjacent paths.
--- The shape and the resulting end shape are sewn to those
--- surfaces and returned as a solid when the resulting shell is closed.
+-- The path-start and path-end cross-sections are sewn to those surfaces and
+-- returned as a solid when the resulting shell is closed. If all paths start
+-- at the input vertices, the original start face is kept to preserve curved
+-- edges; otherwise it is rebuilt from the path starts.
 sweepRuled :: (ToPath path, ToShape shape) => (V2 Double -> path) -> shape -> Solid
 sweepRuled pathForVertex input =
   let shape = toShape input
@@ -119,8 +121,10 @@ buildSweep2 shape wires =
             }
 
             std::vector<TopoDS_Wire> paths;
+            std::vector<gp_Pnt> pathStarts;
             std::vector<gp_Pnt> pathEnds;
             paths.reserve((size_t)pathCount);
+            pathStarts.reserve((size_t)pathCount);
             pathEnds.reserve((size_t)pathCount);
             for (int i = 0; i < pathCount; ++i) {
               TopoDS_Wire* path = (TopoDS_Wire*)pathPtrs[i];
@@ -134,18 +138,80 @@ buildSweep2 shape wires =
                 return result;
               }
               paths.push_back(wire);
+              pathStarts.push_back(BRep_Tool::Pnt(first));
               pathEnds.push_back(BRep_Tool::Pnt(last));
+            }
+
+            auto makeCapFace = [&](const TopoDS_Face& source,
+                                   const std::vector<gp_Pnt>& points) -> TopoDS_Face {
+              auto makeWire = [&](const TopoDS_Wire& wire) -> TopoDS_Wire {
+                BRepBuilderAPI_MakeWire wireBuilder;
+                BRepTools_WireExplorer explorer(wire);
+                for (; explorer.More(); explorer.Next()) {
+                  TopoDS_Vertex first, last;
+                  TopExp::Vertices(explorer.Current(), first, last, Standard_True);
+                  const int firstIndex = vertices.FindIndex(first);
+                  const int lastIndex = vertices.FindIndex(last);
+                  if (firstIndex <= 0 || lastIndex <= 0) {
+                    return TopoDS_Wire();
+                  }
+                  wireBuilder.Add(BRepBuilderAPI_MakeEdge(
+                    points[(size_t)(firstIndex - 1)],
+                    points[(size_t)(lastIndex - 1)]).Edge());
+                }
+                return wireBuilder.IsDone() ? wireBuilder.Wire() : TopoDS_Wire();
+              };
+
+              TopoDS_Wire outer = BRepTools::OuterWire(source);
+              TopoDS_Wire rebuiltOuter = makeWire(outer);
+              if (rebuiltOuter.IsNull()) {
+                return TopoDS_Face();
+              }
+              BRepBuilderAPI_MakeFace faceBuilder(rebuiltOuter);
+              if (!faceBuilder.IsDone()) {
+                return TopoDS_Face();
+              }
+              for (TopExp_Explorer wires(source, TopAbs_WIRE);
+                   wires.More(); wires.Next()) {
+                TopoDS_Wire wire = TopoDS::Wire(wires.Current());
+                if (wire.IsSame(outer)) {
+                  continue;
+                }
+                TopoDS_Wire rebuiltHole = makeWire(wire);
+                if (rebuiltHole.IsNull()) {
+                  return TopoDS_Face();
+                }
+                faceBuilder.Add(rebuiltHole);
+              }
+              return faceBuilder.Face();
+            };
+
+            bool startsOnShape = true;
+            for (int i = 1; i <= vertices.Extent(); ++i) {
+              const gp_Pnt inputPoint = BRep_Tool::Pnt(TopoDS::Vertex(vertices(i)));
+              if (inputPoint.Distance(pathStarts[(size_t)(i - 1)]) > 1.0e-7) {
+                startsOnShape = false;
+                break;
+              }
             }
 
             BRepBuilderAPI_Sewing sewing(1.0e-7);
 
-            // Keep the original shape as the start cap.  This also keeps
-            // curved shape edges instead of replacing them with chords.
+            // Keep the original face when the paths start at its vertices,
+            // preserving curved edges. Otherwise cap the actual path starts.
             for (TopExp_Explorer faces(*input, TopAbs_FACE);
                  faces.More(); faces.Next()) {
-              sewing.Add(faces.Current());
+              TopoDS_Face face = TopoDS::Face(faces.Current());
+              if (startsOnShape) {
+                sewing.Add(face);
+              } else {
+                TopoDS_Face startFace = makeCapFace(face, pathStarts);
+                if (startFace.IsNull()) {
+                  return result;
+                }
+                sewing.Add(startFace);
+              }
             }
-
             // BRepFill::Shell applies BRepFill::Face to corresponding edges
             // of the two paths.  Thus each shape edge becomes a ruled
             // patch whose boundaries follow the two vertex paths.
@@ -168,63 +234,15 @@ buildSweep2 shape wires =
               sewing.Add(side);
             }
 
-            // Rebuild the end cap from the terminal points of the paths.
-            // The shape is planar in the public ToShape API, so a planar
-            // wire made from those points is sufficient here.
+            // Cap the terminal cross-section from the path endpoints.
             for (TopExp_Explorer faces(*input, TopAbs_FACE);
                  faces.More(); faces.Next()) {
-              TopoDS_Face face = TopoDS::Face(faces.Current());
-              TopoDS_Wire outer = BRepTools::OuterWire(face);
-              BRepBuilderAPI_MakeWire outerBuilder;
-              BRepTools_WireExplorer outerExplorer(outer);
-              for (; outerExplorer.More(); outerExplorer.Next()) {
-                TopoDS_Vertex first, last;
-                TopExp::Vertices(
-                  outerExplorer.Current(), first, last, Standard_True);
-                const int firstIndex = vertices.FindIndex(first);
-                const int lastIndex = vertices.FindIndex(last);
-                if (firstIndex <= 0 || lastIndex <= 0) {
-                  return result;
-                }
-                outerBuilder.Add(BRepBuilderAPI_MakeEdge(
-                  pathEnds[(size_t)(firstIndex - 1)],
-                  pathEnds[(size_t)(lastIndex - 1)]).Edge());
-              }
-              if (!outerBuilder.IsDone()) {
+              TopoDS_Face endFace = makeCapFace(
+                TopoDS::Face(faces.Current()), pathEnds);
+              if (endFace.IsNull()) {
                 return result;
               }
-              BRepBuilderAPI_MakeFace endFaceBuilder(outerBuilder.Wire());
-              if (!endFaceBuilder.IsDone()) {
-                return result;
-              }
-
-              for (TopExp_Explorer holes(face, TopAbs_WIRE);
-                   holes.More(); holes.Next()) {
-                TopoDS_Wire hole = TopoDS::Wire(holes.Current());
-                if (hole.IsSame(outer)) {
-                  continue;
-                }
-                BRepBuilderAPI_MakeWire holeBuilder;
-                BRepTools_WireExplorer holeExplorer(hole);
-                for (; holeExplorer.More(); holeExplorer.Next()) {
-                  TopoDS_Vertex first, last;
-                  TopExp::Vertices(
-                    holeExplorer.Current(), first, last, Standard_True);
-                  const int firstIndex = vertices.FindIndex(first);
-                  const int lastIndex = vertices.FindIndex(last);
-                  if (firstIndex <= 0 || lastIndex <= 0) {
-                    return result;
-                  }
-                  holeBuilder.Add(BRepBuilderAPI_MakeEdge(
-                    pathEnds[(size_t)(firstIndex - 1)],
-                    pathEnds[(size_t)(lastIndex - 1)]).Edge());
-                }
-                if (!holeBuilder.IsDone()) {
-                  return result;
-                }
-                endFaceBuilder.Add(holeBuilder.Wire());
-              }
-              sewing.Add(endFaceBuilder.Face());
+              sewing.Add(endFace);
             }
 
             sewing.Perform();
