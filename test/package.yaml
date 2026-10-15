@@ -52,6 +52,10 @@ executables:
     main: path_offset_side.hs
     dependencies:
       - test
+  padr:
+    main: padr.hs
+    dependencies:
+      - test
   sweepRuled:
     main: sweepRuled.hs
     dependencies:
