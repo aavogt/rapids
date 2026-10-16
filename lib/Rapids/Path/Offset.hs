@@ -38,10 +38,7 @@ import Waterfall.TwoD.Internal.Shape (Shape (..))
 C.context occtContext
 Cpp.include "<BRepOffsetAPI_MakePipeShell.hxx>"
 Cpp.include "<BRepBuilderAPI_TransitionMode.hxx>"
-Cpp.include "<BRepGProp.hxx>"
-Cpp.include "<GProp_GProps.hxx>"
-Cpp.include "<Law_Interpol.hxx>"
-Cpp.include "<TColgp_Array1OfPnt2d.hxx>"
+Cpp.include "<Law_Constant.hxx>"
 Cpp.include "<TopExp.hxx>"
 Cpp.include "<BRep_Tool.hxx>"
 Cpp.include "<BRepTools_WireExplorer.hxx>"
@@ -50,7 +47,6 @@ Cpp.include "<gp_Pnt.hxx>"
 Cpp.include "<TopTools_ListIteratorOfListOfShape.hxx>"
 Cpp.include "<Precision.hxx>"
 Cpp.include "<gp_Dir.hxx>"
-Cpp.include "<gp_Pnt2d.hxx>"
 Cpp.include "<BRepOffsetAPI_MakeOffset.hxx>"
 Cpp.include "<GeomAbs_JoinType.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
@@ -78,48 +74,39 @@ offsetPath amount join = offsetPathWithOpenResult amount join 0
 offsetPathSide :: CDouble -> CInt -> Path -> Path
 offsetPathSide amount _ _ | amount == 0 = mempty
 offsetPathSide amount join input =
-  closeSideOffset join input $ offsetPathWithOpenResult amount join 1 input
+  closeSideOffset join input $ sideOffsetCurve [amount] join input
 
--- | Return a closed one-sided offset using thicknesses sampled evenly along
--- the spine. At least two values define an interpolated law from start to end;
--- a single value is equivalent to 'offsetPathSide'. An empty list returns an
--- empty path. @join@ controls corners and end caps as in 'offsetPathSide'.
+-- | Return a closed one-sided offset with a constant thickness on each spine
+-- edge. A single value, or repeated equal values, applies that thickness to
+-- the whole spine. Otherwise the list length must match the edge count, and
+-- thickness changes occur at edge joins. An empty list returns an empty path.
+-- @join@ controls corners and end caps as in 'offsetPathSide'.
 offsetPathSides :: [CDouble] -> CInt -> Path -> Path
 offsetPathSides [] _ _ = mempty
 offsetPathSides [amount] join input = offsetPathSide amount join input
-offsetPathSides amounts _ _ | all (== 0) amounts = mempty
-offsetPathSides amounts join input =
-  closeSideOffset join input $ ownPath $ withArray amounts $ \amountArray ->
+offsetPathSides amounts@(first:_) join input
+  | all (== first) amounts = offsetPathSide first join input
+offsetPathSides amounts join input = closeSideOffset join input $ sideOffsetCurve amounts join input
+
+sideOffsetCurve :: [CDouble] -> CInt -> Path -> Path
+sideOffsetCurve amounts join input = propagateSideOffsetColors input $ ownPath $ withArray amounts $ \amountArray ->
     [Cpp.block| TopoDS_Wire* {
       TopoDS_Wire* spine = $path:input;
       const double* thicknesses = $(double *amountArray);
       const int count = $(int sampleCount);
-      if (spine == nullptr || spine->IsNull() || count < 2) {
+      const int joinType = $(int join);
+      if (spine == nullptr || spine->IsNull() || count < 1) {
         return nullptr;
       }
 
       try {
-        TopoDS_Vertex spineStart, spineEnd;
-        TopExp::Vertices(*spine, spineStart, spineEnd);
-        if (spineStart.IsNull() || spineEnd.IsNull()) {
+        int edgeCount = 0;
+        for (BRepTools_WireExplorer explorer(*spine); explorer.More(); explorer.Next()) {
+          ++edgeCount;
+        }
+        if (count != 1 && count != edgeCount) {
           return nullptr;
         }
-
-        GProp_GProps properties;
-        BRepGProp::LinearProperties(*spine, properties);
-        const double spineLength = properties.Mass();
-        if (!(spineLength > Precision::Confusion())) {
-          return nullptr;
-        }
-
-        TColgp_Array1OfPnt2d points(1, count);
-        for (int i = 0; i < count; ++i) {
-          const double parameter = spineLength * i / (count - 1);
-          points.SetValue(i + 1, gp_Pnt2d(parameter, thicknesses[i]));
-        }
-
-        Handle(Law_Interpol) law = new Law_Interpol();
-        law->Set(points, Standard_False);
 
         const TopoDS_Edge profileEdge = BRepBuilderAPI_MakeEdge(
             gp_Pnt(0.0, 0.0, 0.0), gp_Pnt(0.0, 1.0, 0.0)).Edge();
@@ -128,33 +115,115 @@ offsetPathSides amounts join input =
         if (profileEnd.IsNull()) {
           return nullptr;
         }
-
         BRepBuilderAPI_MakeWire profileBuilder(profileEdge);
         if (!profileBuilder.IsDone()) {
           return nullptr;
         }
         const TopoDS_Wire profile = profileBuilder.Wire();
 
-        BRepOffsetAPI_MakePipeShell pipe(*spine);
-        pipe.SetMode(gp_Dir(0.0, 0.0, 1.0));
-        pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
-        pipe.SetLaw(profile, law, spineStart, Standard_False, Standard_False);
-        pipe.Build();
-        if (!pipe.IsDone()) {
-          return nullptr;
-        }
-
-        const TopTools_ListOfShape& generated = pipe.Generated(profileEnd);
-        BRepBuilderAPI_MakeWire wire;
-        for (TopTools_ListIteratorOfListOfShape it(generated); it.More(); it.Next()) {
-          if (it.Value().ShapeType() == TopAbs_EDGE) {
-            wire.Add(TopoDS::Edge(it.Value()));
+        BRepBuilderAPI_MakeWire result;
+        gp_Pnt previousOffsetEnd;
+        int edgeIndex = 0;
+        for (BRepTools_WireExplorer spineExplorer(*spine); spineExplorer.More(); spineExplorer.Next()) {
+          const TopoDS_Edge spineEdge = TopoDS::Edge(spineExplorer.Current());
+          TopoDS_Vertex spineStart, spineEnd;
+          TopExp::Vertices(spineEdge, spineStart, spineEnd);
+          if (spineStart.IsNull() || spineEnd.IsNull()) {
+            return nullptr;
           }
+
+          BRepAdaptor_Curve spineCurve(spineEdge);
+          Handle(Law_Constant) law = new Law_Constant();
+          law->Set(thicknesses[count == 1 ? 0 : edgeIndex],
+                   spineCurve.FirstParameter(), spineCurve.LastParameter());
+
+          BRepBuilderAPI_MakeWire edgeSpineBuilder(spineEdge);
+          if (!edgeSpineBuilder.IsDone()) {
+            return nullptr;
+          }
+          BRepOffsetAPI_MakePipeShell pipe(edgeSpineBuilder.Wire());
+          pipe.SetMode(gp_Dir(0.0, 0.0, 1.0));
+          pipe.SetTransitionMode(BRepBuilderAPI_RoundCorner);
+          pipe.SetLaw(profile, law, spineStart, Standard_False, Standard_False);
+          pipe.Build();
+          if (!pipe.IsDone()) {
+            return nullptr;
+          }
+
+          const TopTools_ListOfShape& generated = pipe.Generated(profileEnd);
+          BRepBuilderAPI_MakeWire segmentBuilder;
+          for (TopTools_ListIteratorOfListOfShape it(generated); it.More(); it.Next()) {
+            if (it.Value().ShapeType() == TopAbs_EDGE) {
+              segmentBuilder.Add(TopoDS::Edge(it.Value()));
+            }
+          }
+          if (!segmentBuilder.IsDone()) {
+            return nullptr;
+          }
+          TopoDS_Wire segment = segmentBuilder.Wire();
+          TopoDS_Vertex offsetStart, offsetEnd;
+          TopExp::Vertices(segment, offsetStart, offsetEnd);
+          if (offsetStart.IsNull() || offsetEnd.IsNull()) {
+            return nullptr;
+          }
+          const gp_Pnt spineStartPoint = BRep_Tool::Pnt(spineStart);
+          const gp_Pnt spineEndPoint = BRep_Tool::Pnt(spineEnd);
+          gp_Pnt offsetStartPoint = BRep_Tool::Pnt(offsetStart);
+          gp_Pnt offsetEndPoint = BRep_Tool::Pnt(offsetEnd);
+          const double forwardDistance = spineStartPoint.Distance(offsetStartPoint)
+              + spineEndPoint.Distance(offsetEndPoint);
+          const double reverseDistance = spineStartPoint.Distance(offsetEndPoint)
+              + spineEndPoint.Distance(offsetStartPoint);
+          if (reverseDistance < forwardDistance) {
+            segment.Reverse();
+            TopoDS_Vertex vertex = offsetStart;
+            offsetStart = offsetEnd;
+            offsetEnd = vertex;
+            offsetStartPoint = BRep_Tool::Pnt(offsetStart);
+            offsetEndPoint = BRep_Tool::Pnt(offsetEnd);
+          }
+
+          if (edgeIndex > 0 && previousOffsetEnd.Distance(offsetStartPoint) > Precision::Confusion()) {
+            TopoDS_Edge connector;
+            if (joinType == GeomAbs_Arc) {
+              const gp_Pnt corner = spineStartPoint;
+              gp_Vec firstRadius(corner, previousOffsetEnd);
+              gp_Vec secondRadius(corner, offsetStartPoint);
+              const double firstLength = firstRadius.Magnitude();
+              const double secondLength = secondRadius.Magnitude();
+              if (firstLength > Precision::Confusion() && secondLength > Precision::Confusion()) {
+                firstRadius.Normalize();
+                secondRadius.Normalize();
+                gp_Vec bisector = firstRadius + secondRadius;
+                if (bisector.SquareMagnitude() > 1e-24) {
+                  bisector.Normalize();
+                  bisector *= (firstLength + secondLength) * 0.5;
+                  const gp_Pnt middle = corner.Translated(bisector);
+                  GC_MakeArcOfCircle arc(previousOffsetEnd, middle, offsetStartPoint);
+                  if (arc.IsDone()) {
+                    connector = BRepBuilderAPI_MakeEdge(arc.Value()).Edge();
+                  }
+                }
+              }
+            }
+            if (connector.IsNull()) {
+              connector = BRepBuilderAPI_MakeEdge(previousOffsetEnd, offsetStartPoint).Edge();
+            }
+            if (connector.IsNull()) {
+              return nullptr;
+            }
+            result.Add(connector);
+          }
+          for (BRepTools_WireExplorer segmentExplorer(segment); segmentExplorer.More(); segmentExplorer.Next()) {
+            result.Add(TopoDS::Edge(segmentExplorer.Current()));
+          }
+          if (!result.IsDone()) {
+            return nullptr;
+          }
+          previousOffsetEnd = offsetEndPoint;
+          ++edgeIndex;
         }
-        if (!wire.IsDone()) {
-          return nullptr;
-        }
-        return new TopoDS_Wire(wire.Wire());
+        return new TopoDS_Wire(result.Wire());
       } catch (...) {
         return nullptr;
       }
@@ -288,7 +357,11 @@ closeSideOffset join input sideOffset = propagateSideOffsetColors input $ ownPat
       if (!startCap.IsNull()) {
         result.Add(startCap);
       }
-      if (!result.IsDone() || !BRep_Tool::IsClosed(result.Wire())) {
+      if (!result.IsDone()) {
+        return nullptr;
+      }
+      const TopoDS_Wire closed = result.Wire();
+      if (!BRep_Tool::IsClosed(closed)) {
         return nullptr;
       }
       return new TopoDS_Wire(result.Wire());
@@ -383,13 +456,30 @@ offsetPathWithOpenResult amount join openResult input = propagateSideOffsetColor
       if (result.ShapeType() == TopAbs_WIRE) {
         return new TopoDS_Wire(TopoDS::Wire(result));
       }
+      if (isOpenResult && result.ShapeType() == TopAbs_EDGE) {
+        BRepBuilderAPI_MakeWire wire(TopoDS::Edge(result));
+        if (!wire.IsDone()) {
+          return nullptr;
+        }
+        return new TopoDS_Wire(wire.Wire());
+      }
       if (result.ShapeType() != TopAbs_COMPOUND) {
         return nullptr;
       }
       // Path represents a single wire; use the first wire from compounds.
       TopExp_Explorer wireExplorer(result, TopAbs_WIRE);
       if (!wireExplorer.More()) {
-        return nullptr;
+        if (!isOpenResult) {
+          return nullptr;
+        }
+        BRepBuilderAPI_MakeWire wire;
+        for (TopExp_Explorer edgeExplorer(result, TopAbs_EDGE); edgeExplorer.More(); edgeExplorer.Next()) {
+          wire.Add(TopoDS::Edge(edgeExplorer.Current()));
+        }
+        if (!wire.IsDone()) {
+          return nullptr;
+        }
+        return new TopoDS_Wire(wire.Wire());
       }
       return new TopoDS_Wire(TopoDS::Wire(wireExplorer.Current()));
     } catch (...) {
