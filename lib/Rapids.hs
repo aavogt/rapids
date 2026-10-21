@@ -118,6 +118,7 @@ module Rapids
     unitSpiral,
     FilletChamfer (..),
 
+    module Rapids.Check,
     -- * consume 3d
     module Rapids.Statistics,
     -- | see also "Rapids.Section"
@@ -150,6 +151,7 @@ import Rapids.EnvDefaults
 import Rapids.IniVal
 import Rapids.Num
 import Rapids.Offset
+import Rapids.Check
 import Rapids.Pad
 import Rapids.Path
 import Rapids.Path.CornerOp

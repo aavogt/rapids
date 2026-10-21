@@ -19,6 +19,7 @@ library
       Rapids.AABB.Align
       Rapids.AABB.Lens
       Rapids.BoolOp
+      Rapids.Check
       Rapids.Color
       Rapids.Color.AxisTriad
       Rapids.Color.Query
