@@ -4,11 +4,15 @@
 module Rapids.SVG where
 
 import Language.Haskell.TH.Quote (QuasiQuoter (..))
-import SvgTreeAntiquote (parsePathCommands)
+import SvgTreeAntiquote (parsePathCommandsSupplement)
+import SvgTreeOffset (pathOutline)
 import Waterfall.SVG (convertPathCommands)
 
-svg =
+
+svgTol tol =
   QuasiQuoter
     { quoteExp = \str ->
-        [| either (error . show) id $ convertPathCommands $(parsePathCommands str)|]
+        [| either (error . show) id $ convertPathCommands $ pathOutline tol $(parsePathCommandsSupplement str)|]
     }
+
+svg = svgTol (0.1:: Double)
