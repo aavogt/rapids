@@ -1,9 +1,4 @@
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
-
-import Common (write)
-import Rapids
-import Rapids.SVG
+import Common
 
 aframe = foldMap (pad 1) [svg| W 1,0 h 10 [ W 1 v 5 ] h 2  |]
 

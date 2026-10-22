@@ -1,8 +1,4 @@
-{-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
-
 import Common
-import Rapids
-import Rapids.SVG
 
 a = foldMap (pad 1) [svg| W 1,0 M 31/2,0 H 6.5 v 3 { H 0 } v 1  |]
 b = foldMap (pad 1) [svg| W 1,0 M 31/2,0 H 6.5 v 3 { W 1,0 H 0 } v 1  |]

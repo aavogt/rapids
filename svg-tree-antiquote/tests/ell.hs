@@ -1,9 +1,4 @@
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
-
-import Common (write)
-import Rapids
-import Rapids.SVG
+import Common
 
 ell = foldMap (pad 1) [svg| W 0.1,0 h 1 W 0,0.2 v 1 |]
 ellRef = foldMap (pad 1) [svg| W 0.1,0 h 1 |]
