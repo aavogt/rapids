@@ -1,0 +1,23 @@
+name: svg-tree-antiquote
+
+license: GPL
+
+default-extensions:
+  - QuasiQuotes
+  - TemplateHaskell
+  - LambdaCase
+  - ImplicitParams
+  - NoMonomorphismRestriction
+  - StandaloneDeriving
+  - DeriveLift
+
+dependencies:
+  - base
+  - BNFC-meta
+  - svg-tree
+  - template-haskell
+  - linear
+
+library:
+  source-dirs:
+    - lib
