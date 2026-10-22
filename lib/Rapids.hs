@@ -116,6 +116,7 @@ module Rapids
     -- ** others
     revolution,
     unitSpiral,
+    rotationFromTo,
     FilletChamfer (..),
 
     module Rapids.Check,
