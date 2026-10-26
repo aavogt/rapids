@@ -124,6 +124,7 @@ module Rapids
     module Rapids.Statistics,
     -- | see also "Rapids.Section"
     colorQuery,
+    selectFacesByIndex,
 
     -- * implementation details
     module Rapids.Num,
@@ -158,6 +159,7 @@ import Rapids.Path
 import Rapids.Path.CornerOp
 import Rapids.Path.Offset
 import Rapids.Path.Project
+import Rapids.Query
 import Rapids.Reexports
 import Rapids.Revolution
 import Rapids.Section
