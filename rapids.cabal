@@ -25,6 +25,7 @@ library
       Rapids.Color.Query
       Rapids.ConvexHull
       Rapids.EnvDefaults
+      Rapids.Hull2D
       Rapids.IniVal
       Rapids.Num
       Rapids.Offset
