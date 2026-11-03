@@ -25,7 +25,7 @@ module Rapids
     rectangle,
     circle,
     offset,
-    hull2d,
+    hull2D,
 
     -- ** specialized 'FilletChamfer'
     chamferPath,
