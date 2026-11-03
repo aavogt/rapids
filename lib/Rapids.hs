@@ -25,6 +25,7 @@ module Rapids
     rectangle,
     circle,
     offset,
+    hull2d,
 
     -- ** specialized 'FilletChamfer'
     chamferPath,
@@ -149,6 +150,7 @@ import Rapids.Color
 import Rapids.Color.AxisTriad
 import Rapids.Color.Query (colorQuery)
 import Rapids.ConvexHull
+import Rapids.Hull2D
 import Rapids.EnvDefaults
 import Rapids.IniVal
 import Rapids.Num
