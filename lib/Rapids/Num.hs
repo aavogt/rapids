@@ -62,7 +62,7 @@ instance Num Shape where
   (+) = W.union
   (-) = W.difference
   (*) = W.intersection
-  fromInteger i = scale2D (fromInteger i) (fromInteger i) unitSquare
+  fromInteger i = uScale2D (fromInteger i) unitSquare
   abs = error "instance Num Shape missing abs"
   signum = error "instance Num Shape missing signum"
 
