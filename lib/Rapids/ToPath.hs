@@ -16,3 +16,5 @@ instance {-# OVERLAPS #-} (path ~ Path) => ToPath path where toPath = id
 instance ToPath Path2D where toPath = fromPath2D
 
 instance ToPath Shape where toPath = foldMap toPath . shapePaths
+
+instance ToPath [Path2D] where toPath = foldMap toPath

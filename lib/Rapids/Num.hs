@@ -7,24 +7,29 @@ import Rapids.Transforms
 import Rapids.Statistics
 import Rapids.AABB
 import Linear
-import Waterfall (Path, Path2D, Solid, Shape, unitSquare)
+import Waterfall (Path, Path2D, Solid, Shape, unitSquare, Transformable2D (uScale2D))
 import qualified Waterfall as W
 import Rapids.Color
+import Rapids.ToShape
+import Rapids.ToPath
+import Data.Coerce
+import Waterfall.Internal.Path (Path(..))
+import Waterfall.TwoD.Internal.Path2D (Path2D(..))
 
 -- | @+@ is '(<>)'. The other methods are errors. Needed by @mirrored@ (which adds the original) on a 'Path'
 instance Num Path where
-  (+) = (<>)
-  (-) = error "Num Path missing -"
-  (*) = error "Num Path missing *"
+  a + b = toPath (toShape a + toShape b)
+  a - b = toPath (toShape a - toShape b)
+  a * b = toPath (toShape a * toShape b)
   fromInteger = error "Num Path missing fromInteger"
   signum = error "Num Path missing signum"
   abs = error "Num Path missing abs"
 
 -- | @+@ is '(<>)'. The other methods are errors. Needed by 'Rapids.Mirror.mirrored' (which adds the original) on a 'Path2D'
 instance Num Path2D where
-  (+) = (<>)
-  (-) = error "Num Path2D missing -"
-  (*) = error "Num Path2D missing *"
+  a + b = coerce $ toPath (toShape a + toShape b)
+  a - b = coerce $ toPath (toShape a - toShape b)
+  a * b = coerce $ toPath (toShape a * toShape b)
   fromInteger = error "Num Path2D missing fromInteger"
   signum = error "Num Path2D missing signum"
   abs = error "Num Path2D missing abs"
