@@ -210,10 +210,10 @@ loft2 (x : y : xs) = propagatePathColors x (loft [x, y]) + loft2 (y : xs)
 loft2 [] = mempty
 
 -- | @fillet r@ rounds and @chamfer r@ cuts the edges (of a 'Solid') or corners (of a 'Path', 'Path2D' or 'Shape') by @r@
---
--- > fillet, chamfer :: Double -> solid|path|path2d|shape -> solid|path|path2d|shape
 class FilletChamfer a where
+  -- | > fillet :: Double -> solid|path|path2d|shape -> solid|path|path2d|shape
   fillet :: Double -> a -> a
+  -- | > chamfer :: Double -> solid|path|path2d|shape -> solid|path|path2d|shape
   chamfer :: Double -> a -> a
 
 instance FilletChamfer Solid where
