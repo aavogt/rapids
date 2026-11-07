@@ -1,6 +1,6 @@
 # svg-tree-antiquote
 
-used by https://github.com/aavogt/rapids/tree/main/rapids-svg
+used by ../rapids-svg https://github.com/aavogt/rapids/tree/main/rapids-svg
 
 ```haskell
 -- | Parse svg path commands into svg-tree's 'PathCommand',
