@@ -30,6 +30,7 @@ library
       Rapids.Num
       Rapids.Offset
       Rapids.Pad
+      Rapids.Pad.To
       Rapids.Path
       Rapids.Path.CornerOp
       Rapids.Path.Offset

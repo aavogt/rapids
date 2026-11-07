@@ -39,6 +39,7 @@ module Rapids
     -- "Rapids.ConvexHull"
     hull,
     pad,
+    padToV,
     sweep,
     sweepRuled,
     loft2,
@@ -157,6 +158,7 @@ import Rapids.Num
 import Rapids.Offset
 import Rapids.Check
 import Rapids.Pad
+import Rapids.Pad.To (padToV)
 import Rapids.Path
 import Rapids.Path.CornerOp
 import Rapids.Path.Offset
