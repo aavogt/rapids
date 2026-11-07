@@ -40,7 +40,10 @@ module Rapids
     hull,
     pad,
     padToV,
+    paddedToV,
     sweep,
+    sweepTo,
+    sweptTo,
     sweepRuled,
     loft2,
 
@@ -158,7 +161,7 @@ import Rapids.Num
 import Rapids.Offset
 import Rapids.Check
 import Rapids.Pad
-import Rapids.Pad.To (padToV)
+import Rapids.Pad.To (padToV, paddedToV)
 import Rapids.Path
 import Rapids.Path.CornerOp
 import Rapids.Path.Offset
@@ -171,6 +174,7 @@ import Rapids.Silhouette
 import Rapids.Spiral
 import Rapids.Statistics
 import Rapids.Sweep
+import Rapids.Sweep.To (sweepTo, sweptTo)
 import Rapids.ToPath
 import Rapids.ToShape
 import Rapids.ToV3

@@ -1,13 +1,14 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 -- | Directional padding up to an existing solid.
-module Rapids.Pad.To (padToV) where
+module Rapids.Pad.To (padToV, paddedToV) where
 
 import InlineOCCT (occtContext, ownSolid)
 import qualified Language.C.Inline.Cpp as Cpp
 import Linear (V3)
 import Rapids.ToShape (ToShape, toShape)
 import Waterfall (Solid)
+import Rapids.Num ()
 
 Cpp.context occtContext
 Cpp.include "<BRepAlgoAPI_Cut.hxx>"
@@ -34,6 +35,10 @@ Cpp.include "<Standard_Failure.hxx>"
 -- The returned solid is the portion of the extrusion touching the profile;
 -- inner wires on target faces are also swept back through the pad and removed.
 padToV :: ToShape s => V3 Double -> s -> Solid -> Solid
+
+-- | Add the target solid to the pad produced by 'padToV'.
+paddedToV :: ToShape s => V3 Double -> s -> Solid -> Solid
+paddedToV direction profile target = padToV direction profile target + target
 padToV direction profile target = ownSolid [Cpp.block| TopoDS_Shape* {
   auto emptyShape = []() -> TopoDS_Shape* { return new TopoDS_Shape(); };
   TopoDS_Shape* profileShape = $shape:profileShape;

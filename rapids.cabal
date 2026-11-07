@@ -46,6 +46,7 @@ library
       Rapids.Spiral
       Rapids.Statistics
       Rapids.Sweep
+      Rapids.Sweep.To
       Rapids.ToPath
       Rapids.ToShape
       Rapids.ToV3
