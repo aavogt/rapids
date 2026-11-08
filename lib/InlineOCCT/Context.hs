@@ -13,7 +13,7 @@ import Language.Haskell.TH as TH
 import Linear (V3 (..))
 import OpenCascade.GP.Types
 import OpenCascade.TopoDS.Types
-import Waterfall.Internal.Finalizers (toAcquire)
+import Waterfall.Internal.Finalizers (acquireForeignPtr)
 import Waterfall.Internal.Path (Path (..))
 import Waterfall.Internal.Path.Common (RawPath (..))
 import Waterfall.Internal.Solid
@@ -75,9 +75,9 @@ pathAntiQuoter =
         let cId = mangleHaskellIdentifier useCpp hId
         return (cId, p "TopoDS_Wire", hId),
       aqMarshaller = \_purity _cTypes _cTy cId -> do
-        hsExp' <- [| with $ toAcquire $ case $(getHsVariable "occtContext" cId) of
-          Path (ComplexRawPath wire) -> wire
-          _ -> nullPtr |]
+        hsExp' <- [| with $ case $(getHsVariable "occtContext" cId) of
+          Path (ComplexRawPath wire) -> acquireForeignPtr wire
+          _ -> Prelude.pure nullPtr |]
         hsTy <- [t|Ptr Wire|]
         return (hsTy, hsExp')
     }
@@ -91,7 +91,7 @@ shapeAntiQuoter =
         let cId = mangleHaskellIdentifier useCpp hId
         return (cId, p "TopoDS_Shape", hId),
       aqMarshaller = \_purity _cTypes _cTy cId -> do
-        hsExp' <- [|with $ toAcquire case $(getHsVariable "occtContext" cId) of W.Shape a -> a |]
+        hsExp' <- [|with $ case $(getHsVariable "occtContext" cId) of W.Shape a -> acquireForeignPtr a |]
         hsTy <- [t|Ptr Shape|]
         return (hsTy, hsExp')
     }

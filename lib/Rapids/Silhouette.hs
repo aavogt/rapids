@@ -9,7 +9,8 @@ module Rapids.Silhouette
   )
 where
 
-import Data.Maybe (mapMaybe)
+import Data.Acquire (withAcquire)
+import Data.Maybe (catMaybes)
 import Foreign (Ptr, castPtr)
 import Foreign.C.Types (CInt)
 import Foreign.Marshal.Array (withArray)
@@ -250,47 +251,47 @@ silhouetteShape shape = ownShape [Cpp.block| TopoDS_Shape* {
 -- such as SVG output containing many independent path fragments.
 silhouettePaths :: [Path2D] -> Shape
 silhouettePaths paths =
-  let wires = mapMaybe pathWire paths
-      wireCount = fromIntegral (length wires) :: CInt
-   in ownShape $ withArray wires $ \wireArray ->
-        [Cpp.block| TopoDS_Shape* {
-          void** pathPtrs = $(void** wireArray);
-          const int pathCount = $(int wireCount);
-          if (pathCount == 0) {
-            return new TopoDS_Shape();
-          }
-
-          try {
-            Handle(TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape;
-            for (int i = 0; i < pathCount; ++i) {
-              TopoDS_Wire* path = (TopoDS_Wire*)pathPtrs[i];
-              if (path == nullptr || path->IsNull()) {
-                continue;
-              }
-              for (TopExp_Explorer edgeExplorer(*path, TopAbs_EDGE);
-                   edgeExplorer.More(); edgeExplorer.Next()) {
-                edges->Append(edgeExplorer.Current());
-              }
-            }
-            if (edges->Length() == 0) {
+  ownShape $ withAcquire (catMaybes <$> traverse pathWire paths) $ \wires ->
+    let wireCount = fromIntegral (length wires) :: CInt
+     in withArray wires $ \wireArray ->
+          [Cpp.block| TopoDS_Shape* {
+            void** pathPtrs = $(void** wireArray);
+            const int pathCount = $(int wireCount);
+            if (pathCount == 0) {
               return new TopoDS_Shape();
             }
 
-            Handle(TopTools_HSequenceOfShape) connectedWires =
-                new TopTools_HSequenceOfShape;
-            ShapeAnalysis_FreeBounds::ConnectEdgesToWires(
-                edges, 1.0e-7, Standard_False, connectedWires);
+            try {
+              Handle(TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape;
+              for (int i = 0; i < pathCount; ++i) {
+                TopoDS_Wire* path = (TopoDS_Wire*)pathPtrs[i];
+                if (path == nullptr || path->IsNull()) {
+                  continue;
+                }
+                for (TopExp_Explorer edgeExplorer(*path, TopAbs_EDGE);
+                     edgeExplorer.More(); edgeExplorer.Next()) {
+                  edges->Append(edgeExplorer.Current());
+                }
+              }
+              if (edges->Length() == 0) {
+                return new TopoDS_Shape();
+              }
 
-            TopoDS_Compound result;
-            BRep_Builder resultBuilder;
-            resultBuilder.MakeCompound(result);
-            for (Standard_Integer i = 1; i <= connectedWires->Length(); ++i) {
-              resultBuilder.Add(result, connectedWires->Value(i));
+              Handle(TopTools_HSequenceOfShape) connectedWires =
+                  new TopTools_HSequenceOfShape;
+              ShapeAnalysis_FreeBounds::ConnectEdgesToWires(
+                  edges, 1.0e-7, Standard_False, connectedWires);
+
+              TopoDS_Compound result;
+              BRep_Builder resultBuilder;
+              resultBuilder.MakeCompound(result);
+              for (Standard_Integer i = 1; i <= connectedWires->Length(); ++i) {
+                resultBuilder.Add(result, connectedWires->Value(i));
+              }
+              return new TopoDS_Shape(result);
+            } catch (...) {
+              return new TopoDS_Shape();
             }
-            return new TopoDS_Shape(result);
-          } catch (...) {
-            return new TopoDS_Shape();
-          }
-        } |]
+          } |]
   where
-    pathWire (Path2D raw) = castPtr <$> rawPathWire raw
+    pathWire (Path2D raw) = fmap (fmap castPtr) (rawPathWire raw)

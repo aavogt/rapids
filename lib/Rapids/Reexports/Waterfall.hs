@@ -40,4 +40,13 @@ import Waterfall hiding
     _translated2D,
     fillet,
     chamfer,
+    black,
+    blue,
+    green,
+    lime,
+    maroon,
+    purple,
+    red,
+    white,
+    yellow,
   )

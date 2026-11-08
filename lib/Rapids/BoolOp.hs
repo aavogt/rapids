@@ -15,8 +15,7 @@ import qualified OpenCascade.BOPAlgo.Builder as BOPAlgo.Builder
 import qualified OpenCascade.BOPAlgo.Operation as BOPAlgo.Operation
 import OpenCascade.Inheritance
 import Waterfall hiding (Shape)
-import Waterfall.Internal.Finalizers (fromAcquire, toAcquire)
-import Waterfall.Internal.Solid (Solid (Solid), rawSolid)
+import Waterfall.Internal.Solid (acquireSolid, emptyPaintMap, solidFromAcquire)
 
 C.context occtContext
 Cpp.include "<TopExp_Explorer.hxx>"
@@ -154,18 +153,18 @@ withBooleans op inputs k
 
     runBoolean _ [] k = k (emptySolid, nullPtr)
     runBoolean _ [x] k = k (x, nullPtr)
-    runBoolean op (h : solids) k = withAcquire BOPAlgo.BOP.new \bop -> do
-      firstPtr <- fromAcquire . toAcquire . rawSolid $ h
-      ptrs <- traverse (fromAcquire . toAcquire . rawSolid) solids
-      let builder = upcast bop
-      BOPAlgo.BOP.setOperation bop op
-      BOPAlgo.Builder.addArgument builder firstPtr
-      traverse_ (BOPAlgo.BOP.addTool bop) ptrs
-      BOPAlgo.setRunParallel builder True
-      BOPAlgo.Builder.perform builder
-      shapePtr <- fromAcquire (BOPAlgo.Builder.shape builder)
-      histPtr <- builderHistory (castPtr bop)
-      k (Solid shapePtr, histPtr)
+    runBoolean op (h : solids) k = withAcquire BOPAlgo.BOP.new \bop ->
+      withAcquire (acquireSolid h) \firstPtr ->
+        withAcquire (traverse acquireSolid solids) \ptrs -> do
+          let builder = upcast bop
+          BOPAlgo.BOP.setOperation bop op
+          BOPAlgo.Builder.addArgument builder firstPtr
+          traverse_ (BOPAlgo.BOP.addTool bop) ptrs
+          BOPAlgo.setRunParallel builder True
+          BOPAlgo.Builder.perform builder
+          let result = solidFromAcquire emptyPaintMap (BOPAlgo.Builder.shape builder)
+          histPtr <- builderHistory (castPtr bop)
+          k (result, histPtr)
 
 builderHistory :: Ptr () -> IO (Ptr ())
 builderHistory builder =

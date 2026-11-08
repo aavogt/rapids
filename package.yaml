@@ -4,7 +4,7 @@ license: LGPL-2.1-only
 
 dependencies:
   - base
-  - waterfall-cad >= 0.6.2.1
+  - waterfall-cad >= 0.8
   - linear
   - process
   - lens

@@ -15,7 +15,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Waterfall (Solid)
 import Rapids.Num ()
 import Waterfall.Internal.Edges (wireEndpoints, wireTangentStart)
-import Waterfall.Internal.Finalizers (toAcquire)
+import Waterfall.Internal.Finalizers (acquireForeignPtr)
 import Waterfall.Internal.Path (Path (Path))
 import Waterfall.Internal.Path.Common (RawPath (ComplexRawPath))
 
@@ -118,7 +118,7 @@ sweepTo rawPath profile target =
 -- Use the same tangent and start-point placement as Waterfall.sweep.
 sweepStartFrame :: Path -> Maybe (V3 Double, V3 Double)
 sweepStartFrame (Path (ComplexRawPath wire)) = Just $ unsafePerformIO $
-  withAcquire (toAcquire wire) $ \wirePtr -> do
+  withAcquire (acquireForeignPtr wire) $ \wirePtr -> do
     tangent <- wireTangentStart wirePtr
     (start, _) <- wireEndpoints wirePtr
     pure (start, tangent)

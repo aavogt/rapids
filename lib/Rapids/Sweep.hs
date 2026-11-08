@@ -3,6 +3,7 @@
 -- | Sweep a shape while allowing each shape vertex to have its own path.
 module Rapids.Sweep (sweepRuled) where
 
+import Data.Acquire (Acquire, withAcquire)
 import Control.Monad.IO.Class (liftIO)
 import Rapids.Color
 import Foreign.C.Types (CInt)
@@ -57,10 +58,11 @@ sweepRuled pathForVertex input =
   let shape = toShape input
       vertices = shapeVertices shape
       paths = map (toPath . pathForVertex) vertices
-   in case pathWires paths of
-        Nothing -> emptySolid
-        Just wires ->
-          propagateShapeColors shape (buildSweep2 shape wires)
+   in unsafePerformIO $
+        withAcquire (pathWires paths) $ \maybeWires ->
+          case maybeWires of
+            Nothing -> pure emptySolid
+            Just wires -> pure $ propagateShapeColors shape (buildSweep2 shape wires)
 
 shapeVertices :: Shape -> [V2 Double]
 shapeVertices shape = unsafePerformIO $ do
@@ -95,10 +97,10 @@ shapeVertices shape = unsafePerformIO $ do
     pairs _ = []
 {-# NOINLINE shapeVertices #-}
 
-pathWires :: [Path] -> Maybe [Ptr ()]
-pathWires = traverse pathWire
+pathWires :: [Path] -> Acquire (Maybe [Ptr ()])
+pathWires paths = sequence <$> traverse pathWire paths
   where
-    pathWire (InternalPath.Path raw) = castPtr <$> rawPathWire raw
+    pathWire (InternalPath.Path raw) = fmap (fmap castPtr) (rawPathWire raw)
 
 buildSweep2 :: Shape -> [Ptr ()] -> Solid
 buildSweep2 shape wires =

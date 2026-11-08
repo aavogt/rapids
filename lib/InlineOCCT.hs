@@ -8,12 +8,13 @@ import Foreign
 import Waterfall
 import Waterfall.Internal.Path
 import Waterfall.TwoD.Internal.Shape
-import Waterfall.Internal.Path.Common (RawPath(ComplexRawPath))
-import Waterfall.Internal.Finalizers (unsafeFromAcquire)
+import Waterfall.Internal.Path.Common (RawPath(..))
+import Waterfall.Internal.Finalizers (unsafeFromAcquirePtr)
 import Data.Acquire (mkAcquire)
-import Waterfall.Internal.Solid (solidFromAcquireWithCatch)
+import Waterfall.Internal.Solid (solidFromAcquireWithCatch, emptyPaintMap)
 import OpenCascade.TopoDS.Internal.Destructors (deleteShape)
 import Data.Either (fromRight)
+import Foreign.ForeignPtr.Unsafe
 
 C.context occtContext
 Cpp.include "<gp_Pnt.hxx>"
@@ -52,14 +53,13 @@ c_deleteTopoDSWire (castPtr -> ptr) = [Cpp.block| void { delete (TopoDS_Wire*)$(
 c_deleteTopoDSShape :: Ptr TopoDS.Shape -> IO ()
 c_deleteTopoDSShape (castPtr -> ptr) = [Cpp.block| void { delete (TopoDS_Shape*)$(void* ptr); } |]
 
-
 ownPath :: IO (Ptr TopoDS.Wire) -> Path
-ownPath io = unsafeFromAcquire $ do
-  ptr <- mkAcquire io c_deleteTopoDSWire
-  pure $ if ptr == nullPtr then mempty else Path $ ComplexRawPath ptr
+ownPath io = Path $ case unsafeFromAcquirePtr $ mkAcquire io c_deleteTopoDSWire of
+  x | nullPtr == unsafeForeignPtrToPtr x -> EmptyRawPath
+    | otherwise -> ComplexRawPath x
 
 ownShape :: IO (Ptr TopoDS.Shape) -> Shape
-ownShape io = Shape $ unsafeFromAcquire $ mkAcquire io c_deleteTopoDSShape
+ownShape io = Shape $ unsafeFromAcquirePtr $ mkAcquire io c_deleteTopoDSShape
 
 ownSolid :: IO (Ptr TopoDS.Shape) -> Solid
-ownSolid io = fromRight emptySolid $ solidFromAcquireWithCatch $ mkAcquire io deleteShape
+ownSolid io = fromRight emptySolid $ solidFromAcquireWithCatch emptyPaintMap $ mkAcquire io deleteShape

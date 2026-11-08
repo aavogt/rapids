@@ -120,9 +120,9 @@ import Rapids.Reexports.Linear
 import System.Directory
 import System.FilePath
 import System.IO.Unsafe
-import Waterfall hiding (Shape, difference, intersection, intersections, union, unions)
+import Waterfall hiding (Shape, difference, intersection, intersections, union, unions, yellow, red, maroon, green, lime, blue, purple, white, black)
 import Waterfall.Internal.Finalizers (unsafeFromAcquire)
-import Waterfall.Internal.Solid (Solid (Solid))
+import Waterfall.Internal.Solid (acquireSolid, emptyPaintMap, solidFromAcquire)
 import Waterfall.TwoD.Internal.Shape (Shape)
 
 C.context (occtContext <> Cpp.funCtx)
@@ -306,8 +306,10 @@ setColor color = setColors (repeat color)
 
 -- | like 'setColor', but face @i@ gets the color @i@ of the list. Faces beyond the end of the list are left alone.
 setColors :: [V3 CDouble] -> Solid -> Solid
-setColors colors (Solid raw) = unsafeFromAcquire do
-  solid <- Solid <$> BRepBuilderAPI.Copy.copy raw True True -- deep copy
+setColors colors original = unsafeFromAcquire do
+  let solid = solidFromAcquire emptyPaintMap $ do
+        raw <- acquireSolid original
+        BRepBuilderAPI.Copy.copy raw True True -- deep copy
   colorsRef <- liftIO $ newIORef colors
   liftIO $ withFaces_ solid $ \k -> do
     color <- atomicModifyIORef' colorsRef \remaining ->
