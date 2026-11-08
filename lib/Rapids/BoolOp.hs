@@ -163,8 +163,10 @@ withBooleans op inputs k
           BOPAlgo.setRunParallel builder True
           BOPAlgo.Builder.perform builder
           let result = solidFromAcquire emptyPaintMap (BOPAlgo.Builder.shape builder)
-          histPtr <- builderHistory (castPtr bop)
-          k (result, histPtr)
+          -- Materialize the result pointer before the builder is released.
+          withAcquire (acquireSolid result) $ \_ -> do
+            histPtr <- builderHistory (castPtr bop)
+            k (result, histPtr)
 
 builderHistory :: Ptr () -> IO (Ptr ())
 builderHistory builder =
