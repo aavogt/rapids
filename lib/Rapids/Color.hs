@@ -78,6 +78,7 @@ module Rapids.Color
     CTree (..),
     chamferSolidWithColors,
     filletSolidWithColors,
+    filletSolidWithColorsByIndex,
     Note,
     ColorKey,
     colorAttrsMap,
@@ -159,6 +160,7 @@ Cpp.include "<BRepFilletAPI_MakeChamfer.hxx>"
 Cpp.include "<BRepFilletAPI_MakeFillet.hxx>"
 Cpp.include "<TDataStd_Name.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
+Cpp.include "<TopTools_IndexedMapOfShape.hxx>"
 Cpp.include "<stdio.h>"
 
 type ColorKey = (Ptr (), CSize)
@@ -772,6 +774,78 @@ filletSolidWithColors radius source = unsafePerformIO do
   }|]
   result <- readIORef resultRef
   maybe (error "filletSolidWithColors: fillet did not return a shape") pure result
+
+-- | Fillet selected 1-based edge indices in each solid component. Negative-only
+-- indices exclude those edges; positive indices select only those edges.
+filletSolidWithColorsByIndex :: CDouble -> [Int] -> Solid -> Solid
+filletSolidWithColorsByIndex radius indices source =
+  let included = [fromIntegral index :: CLLong | index <- indices, index > 0]
+      excluded =
+        [ fromInteger magnitude :: CLLong
+          | index <- indices,
+            index < 0,
+            let magnitude = negate (toInteger index),
+            magnitude <= toInteger (maxBound :: CLLong)
+        ]
+      includeAll = if null included then 1 else 0 :: CInt
+      includedCount = fromIntegral (length included) :: CInt
+      excludedCount = fromIntegral (length excluded) :: CInt
+   in unsafePerformIO do
+        resultRef <- newIORef Nothing
+        let kFun = curry $ \(resultPtr, historyPtr) -> do
+              let result = ownSolid (pure (castPtr resultPtr))
+              propagateColors historyPtr [source]
+              writeIORef resultRef (Just result)
+        liftIO $
+          withArray included $ \includedPtr ->
+            withArray excluded $ \excludedPtr ->
+              [Cpp.block| void {
+              TopoDS_Shape* input = $solid:source;
+              if (input == nullptr || input->IsNull()) {
+                TopoDS_Shape* output = new TopoDS_Shape();
+                $fun:(void (*kFun)(void*, void*))(output, nullptr);
+                return;
+              }
+
+              const long long* included = (const long long*)$(long long* includedPtr);
+              const long long* excluded = (const long long*)$(long long* excludedPtr);
+              const int includedCount = $(int includedCount);
+              const int excludedCount = $(int excludedCount);
+              const bool includeAll = $(int includeAll) != 0;
+              BRepFilletAPI_MakeFillet fillet(*input);
+              int selectedCount = 0;
+              for (TopExp_Explorer solids(*input, TopAbs_SOLID);
+                   solids.More(); solids.Next()) {
+                TopTools_IndexedMapOfShape edges;
+                TopExp::MapShapes(solids.Current(), TopAbs_EDGE, edges);
+                for (int edgeIndex = 1; edgeIndex <= edges.Extent(); ++edgeIndex) {
+                  bool selected = includeAll;
+                  for (int i = 0; i < includedCount; ++i) {
+                    if (included[i] == edgeIndex) { selected = true; break; }
+                  }
+                  if (!includeAll && !selected) continue;
+                  bool isExcluded = false;
+                  for (int i = 0; i < excludedCount; ++i) {
+                    if (excluded[i] == edgeIndex) { isExcluded = true; break; }
+                  }
+                  if (!isExcluded) {
+                    fillet.Add($(double radius), TopoDS::Edge(edges(edgeIndex)));
+                    ++selectedCount;
+                  }
+                }
+              }
+              if (selectedCount == 0) {
+                $fun:(void (*kFun)(void*, void*))(new TopoDS_Shape(*input), nullptr);
+                return;
+              }
+              TopoDS_Shape* output = new TopoDS_Shape(fillet.Shape());
+              TopTools_ListOfShape arguments;
+              arguments.Append(*input);
+              Handle(BRepTools_History) history = new BRepTools_History(arguments, fillet);
+              $fun:(void (*kFun)(void*, void*))(output, history.get());
+            }|]
+        result <- readIORef resultRef
+        maybe (error "filletSolidWithColorsByIndex: fillet did not return a shape") pure result
 
 -- Returns a raw doc pointer you thread through
 newXCAFDoc :: IO (Ptr ())

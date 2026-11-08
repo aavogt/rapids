@@ -121,7 +121,7 @@ module Rapids
     -- ** others
     revolution,
     unitSpiral,
-    rotationFromTo,
+    Fillet (..),
     FilletChamfer (..),
 
     module Rapids.Check,
@@ -215,26 +215,42 @@ loft2 [x, y] = propagatePathColors x (loft [x, y])
 loft2 (x : y : xs) = propagatePathColors x (loft [x, y]) + loft2 (y : xs)
 loft2 [] = mempty
 
--- | @fillet r@ rounds and @chamfer r@ cuts the edges (of a 'Solid') or corners (of a 'Path', 'Path2D' or 'Shape') by @r@
+-- | @fillet r target@ rounds every edge/corner. @fillet r indexes target@
+-- rounds selected 1-based solid edges or path corners. Positive indexes select
+-- only those entries; negative-only indexes exclude entries. Empty indexes
+-- select all. @chamfer@ retains its existing all-edges/all-corners behavior.
+class Fillet a where
+  fillet :: Double -> a
+
 class FilletChamfer a where
-  -- | > fillet :: Double -> solid|path|path2d|shape -> solid|path|path2d|shape
-  fillet :: Double -> a -> a
-  -- | > chamfer :: Double -> solid|path|path2d|shape -> solid|path|path2d|shape
   chamfer :: Double -> a -> a
 
-instance FilletChamfer Solid where
+instance Fillet (Solid -> Solid) where
   fillet r solid = filletSolidWithColors (CDouble r) solid
+
+instance (b ~ Int) => Fillet ([b] -> Solid -> Solid) where
+  fillet r indices solid = filletSolidWithColorsByIndex (CDouble r) indices solid
+
+instance Fillet (Path -> Path) where
+  fillet = filletPath
+
+instance (b ~ Int) => Fillet ([b] -> Path -> Path) where
+  fillet r indices = filletPathWithIndices r indices
+
+instance Fillet (Path2D -> Path2D) where
+  fillet = coerce filletPath
+
+instance Fillet (Shape -> Shape) where
+  fillet r = foldMap (\path -> let output = fillet r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
+
+instance FilletChamfer Solid where
   chamfer r solid = chamferSolidWithColors (CDouble r) solid
 
 instance FilletChamfer Path where
-  fillet = filletPath
   chamfer = chamferPath
 
 instance FilletChamfer Path2D where
-  fillet = coerce filletPath
   chamfer = coerce chamferPath
 
--- loses topology? perhaps only the skeleton or outerWire?
 instance FilletChamfer Shape where
-  fillet r = foldMap (\path -> let output = fillet r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
   chamfer r = foldMap (\path -> let output = chamfer r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths

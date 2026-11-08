@@ -17,6 +17,7 @@ import Waterfall.Path (Path)
 import qualified Waterfall.Path as W
 import Rapids.Color
 
+import qualified Data.Set as Set
 C.context (occtContext <> C.funCtx)
 Cpp.include "<ChFi2d_ChamferAPI.hxx>"
 Cpp.include "<ChFi2d_FilletAPI.hxx>"
@@ -89,6 +90,26 @@ chamferPath r = chamferPathWithColor leftColor r
 -- | like 'filletPath' with a choice of how the edge colors are propagated
 filletPathWithColor :: OpC -> Double -> Path -> Path
 filletPathWithColor policy r = applyOpWithColor policy (\_ -> (1, r))
+
+-- | Fillet only the selected 1-based corner indices. Negative-only indices
+-- exclude corners; positive indices select only those corners. Colors come
+-- from the left edge, as in 'filletPath'.
+filletPathWithIndices :: Double -> [Int] -> Path -> Path
+filletPathWithIndices radius indices =
+  let included = Set.fromList [toInteger index | index <- indices, index > 0]
+      excluded =
+        Set.fromList
+          [ negate (toInteger index)
+            | index <- indices,
+              index < 0
+          ]
+      includeAll = Set.null included
+      selected index =
+        let publicIndex = toInteger index + 1
+         in (includeAll || Set.member publicIndex included)
+              && not (Set.member publicIndex excluded)
+   in applyOpWithColor leftColor \(index, _, _) ->
+        (1, if selected index then radius else 0)
 
 -- | like 'chamferPath' with a choice of how the edge colors are propagated
 chamferPathWithColor :: OpC -> Double -> Path -> Path
