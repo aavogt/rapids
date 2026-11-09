@@ -1,7 +1,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 -- | Sweep a shape while allowing each shape vertex to have its own path.
-module Rapids.Sweep (sweepRuled) where
+module Rapids.Sweep (SweepRuled(sweepRuled)) where
 
 import Data.Acquire (Acquire, withAcquire)
 import Control.Monad.IO.Class (liftIO)
@@ -12,13 +12,14 @@ import Foreign.Ptr (Ptr, castPtr)
 import InlineOCCT (occtContext, ownSolid)
 import qualified Language.C.Inline as C
 import qualified Language.C.Inline.Cpp as Cpp
-import Linear (V2 (..))
+import Linear hiding (rotate)
 import Rapids.ToPath (ToPath (..))
 import Rapids.ToShape (ToShape (..))
 import System.IO.Unsafe (unsafePerformIO)
 import Waterfall (Path, Shape, Solid, emptySolid)
 import qualified Waterfall.Internal.Path as InternalPath
 import Waterfall.Internal.Path.Common (rawPathWire)
+import Rapids.Transforms (rotate)
 
 C.context occtContext
 Cpp.include "<BRepFill.hxx>"
@@ -46,18 +47,53 @@ Cpp.include "<TopoDS_Vertex.hxx>"
 Cpp.include "<TopoDS_Wire.hxx>"
 Cpp.include "<gp_Pnt.hxx>"
 
--- | @sweepRuled (\\ _shapeVertex -> path) shape = sweep path shape@ at least for shapes with straight edges.
---
+class SweepRuled path where
+  -- | @sweepRuled [svg| V z |] shape = pad z shape@
+  sweepRuled :: ToShape shape => path -> shape -> Solid
+
+instance {-# OVERLAPPABLE #-} ToPath path => SweepRuled (Double -> path) where sweepRuled f = sweepRuled1 (toPath . f . unangle)
+instance {-# OVERLAPPABLE #-} ToPath path => SweepRuled (V2 Double -> path) where sweepRuled = sweepRuled1 . (toPath .)
+instance {-# OVERLAPPABLE #-} ToPath path => SweepRuled (V3 Double -> path) where sweepRuled f = sweepRuled1 (\(V2 x y) -> toPath (f (V3 x y 0)))
+
+instance {-# OVERLAPS #-} ToPath path => SweepRuled path where sweepRuled = sweepRuled1 . (toPath .) . const
+{-
+ - phonograph i o = [i,o] <&> \size -> sweepRuled p $ uScale2D size $ unitPolygon 8
+  where
+    p (V2 x y) = translate x y 0 $ rotate ez (atan2 y x) ex (pi / 2) $ toPath [svg| Q 1,3,5,4 |]
+
+translate xy won't work anymore
+
+Double -> path
+might be r instead of theta... which might go under a name revolutionRuled?
+
+ spikes :: (?king::Path) => Solid
+ spikes = unitPolygon 3
+-  & sweepRuled orientKing
++  & sweepRuled ?king
+   & rotated
+       ez (pi/3)
+       ez (pi/6)
+   & rotate ey (pi/2)
+-
+-orientKing :: (?king::Path) => V2 Double -> Path
+-orientKing v = rotate
+-  ez (unangle v)
+-  ex (pi/2)
+-  ?king
+
+-}
+
+-- | @sweepRuled1 (\\ _shapeVertex -> path) shape = sweep path shape@ at least for shapes with straight edges.
 -- sweepRuled creates ruled surfaces between adjacent paths.
 -- The path-start and path-end cross-sections are sewn to those surfaces and
 -- returned as a solid when the resulting shell is closed. If all paths start
 -- at the input vertices, the original start face is kept to preserve curved
 -- edges; otherwise it is rebuilt from the path starts.
-sweepRuled :: (ToPath path, ToShape shape) => (V2 Double -> path) -> shape -> Solid
-sweepRuled pathForVertex input =
+sweepRuled1 :: (ToShape shape) => (V2 Double -> Path) -> shape -> Solid
+sweepRuled1 pathForVertex input =
   let shape = toShape input
       vertices = shapeVertices shape
-      paths = map (toPath . pathForVertex) vertices
+      paths = map (\v -> rotate ez (unangle v) ex (pi/2) $ pathForVertex v) vertices
    in unsafePerformIO $
         withAcquire (pathWires paths) $ \maybeWires ->
           case maybeWires of
