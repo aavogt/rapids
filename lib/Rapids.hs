@@ -121,7 +121,6 @@ module Rapids
     -- ** others
     revolution,
     unitSpiral,
-    Fillet (..),
     FilletChamfer (..),
 
     module Rapids.Check,
@@ -215,42 +214,44 @@ loft2 [x, y] = propagatePathColors x (loft [x, y])
 loft2 (x : y : xs) = propagatePathColors x (loft [x, y]) + loft2 (y : xs)
 loft2 [] = mempty
 
--- | @fillet r target@ rounds every edge/corner. @fillet r indexes target@
--- rounds selected 1-based solid edges or path corners. Positive indexes select
--- only those entries; negative-only indexes exclude entries. Empty indexes
--- select all. @chamfer@ retains its existing all-edges/all-corners behavior.
-class Fillet a where
-  fillet :: Double -> a
-
+-- | @fillet r target@ rounds every edge/corner; @fillet r indexes target@
+-- rounds selected 1-based solid edges or path/path2d corners. For a Shape,
+-- indices are applied separately to each component path. @chamfer@ accepts
+-- the same forms and index rules. Positive indices select only those entries;
+-- negative-only indices exclude entries; an empty list selects all.
 class FilletChamfer a where
-  chamfer :: Double -> a -> a
+  fillet :: Double -> a
+  chamfer :: Double -> a
 
-instance Fillet (Solid -> Solid) where
-  fillet r solid = filletSolidWithColors (CDouble r) solid
+instance (a ~ a', i ~ Int, FilletChamferByIndex a) => FilletChamfer ([i] -> a -> a') where
+  fillet = filletByIndex
+  chamfer = chamferByIndex
 
-instance (b ~ Int) => Fillet ([b] -> Solid -> Solid) where
-  fillet r indices solid = filletSolidWithColorsByIndex (CDouble r) indices solid
+instance (a ~ a', FilletChamferByIndex a) => FilletChamfer (a -> a') where
+  fillet r = filletByIndex r []
+  chamfer r = chamferByIndex r []
 
-instance Fillet (Path -> Path) where
-  fillet = filletPath
+class FilletChamferByIndex a where
+  filletByIndex, chamferByIndex :: Double -> [Int] -> a -> a
 
-instance (b ~ Int) => Fillet ([b] -> Path -> Path) where
-  fillet r indices = filletPathWithIndices r indices
+instance FilletChamferByIndex Solid where
+  filletByIndex r [] solid = filletSolidWithColors (CDouble r) solid
+  filletByIndex r indices solid = filletSolidWithColorsByIndex (CDouble r) indices solid
+  chamferByIndex r [] solid = chamferSolidWithColors (CDouble r) solid
+  chamferByIndex r indices solid = chamferSolidWithColorsByIndex (CDouble r) indices solid
 
-instance Fillet (Path2D -> Path2D) where
-  fillet = coerce filletPath
+instance FilletChamferByIndex Path where
+  filletByIndex r [] = filletPath r
+  filletByIndex  r indices = filletPathWithIndices r indices
+  chamferByIndex r [] = chamferPath r
+  chamferByIndex r indices = chamferPathWithIndices r indices
 
-instance Fillet (Shape -> Shape) where
-  fillet r = foldMap (\path -> let output = fillet r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
+instance FilletChamferByIndex Path2D where
+  filletByIndex = coerce (filletByIndex @Path)
+  chamferByIndex = coerce (chamferByIndex @Path)
 
-instance FilletChamfer Solid where
-  chamfer r solid = chamferSolidWithColors (CDouble r) solid
-
-instance FilletChamfer Path where
-  chamfer = chamferPath
-
-instance FilletChamfer Path2D where
-  chamfer = coerce chamferPath
-
-instance FilletChamfer Shape where
-  chamfer r = foldMap (\path -> let output = chamfer r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
+instance FilletChamferByIndex Shape where
+  filletByIndex r [] = foldMap (\path -> let output = fillet r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
+  filletByIndex r indices = foldMap (\path -> let output = coerce (filletPathWithIndices r indices (coerce path)) :: Path2D in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
+  chamferByIndex r [] = foldMap (\path -> let output = chamfer r path in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths
+  chamferByIndex r indices = foldMap (\path -> let output = coerce (chamferPathWithIndices r indices (coerce path)) :: Path2D in propagatePathColorsToShape (coerce output) (makeShape output)) . shapePaths

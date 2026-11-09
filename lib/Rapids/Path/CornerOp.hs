@@ -95,21 +95,103 @@ filletPathWithColor policy r = applyOpWithColor policy (\_ -> (1, r))
 -- exclude corners; positive indices select only those corners. Colors come
 -- from the left edge, as in 'filletPath'.
 filletPathWithIndices :: Double -> [Int] -> Path -> Path
-filletPathWithIndices radius indices =
-  let included = Set.fromList [toInteger index | index <- indices, index > 0]
+filletPathWithIndices = indexedPathCornerOp 1
+
+-- | Chamfer only the selected 1-based corner indices, using the same index
+-- and color-propagation rules as 'filletPathWithIndices'.
+chamferPathWithIndices :: Double -> [Int] -> Path -> Path
+chamferPathWithIndices = indexedPathCornerOp 0
+
+indexedPathCornerOp :: CInt -> Double -> [Int] -> Path -> Path
+indexedPathCornerOp operation radius indices input =
+  let included = [fromIntegral index :: CLLong | index <- indices, index > 0]
       excluded =
-        Set.fromList
-          [ negate (toInteger index)
-            | index <- indices,
-              index < 0
-          ]
-      includeAll = Set.null included
-      selected index =
-        let publicIndex = toInteger index + 1
-         in (includeAll || Set.member publicIndex included)
-              && not (Set.member publicIndex excluded)
-   in applyOpWithColor leftColor \(index, _, _) ->
-        (1, if selected index then radius else 0)
+        [ fromInteger magnitude :: CLLong
+          | index <- indices,
+            index < 0,
+            let magnitude = negate (toInteger index),
+            magnitude <= toInteger (maxBound :: CLLong)
+        ]
+      includeAll = if null included then 1 else 0 :: CInt
+      radiusValue = CDouble radius
+      includedCount = fromIntegral (length included) :: CInt
+      excludedCount = fromIntegral (length excluded) :: CInt
+      edgeCount = fromIntegral $ length (InternalPath.allPathEndpoints input)
+      output = fromMaybe input $ do
+        guard (edgeCount >= 2)
+        Just $
+          ownPath $
+            withArray included $ \includedPtr ->
+              withArray excluded $ \excludedPtr ->
+                [Cpp.block| TopoDS_Wire* {
+                  TopoDS_Wire* input = $path:input;
+                  if (input == nullptr || input->IsNull()) return nullptr;
+                  const double radius = $(double radiusValue);
+                  if (!(radius > 0.0) || !std::isfinite(radius)) return nullptr;
+                  const long long* included = (const long long*)$(long long* includedPtr);
+                  const long long* excluded = (const long long*)$(long long* excludedPtr);
+                  const int includedCount = $(int includedCount);
+                  const int excludedCount = $(int excludedCount);
+                  const bool includeAll = $(int includeAll) != 0;
+                  const int op = $(int operation);
+                  try {
+                    std::vector<TopoDS_Edge> edges;
+                    BRepTools_WireExplorer explorer(*input);
+                    for (; explorer.More(); explorer.Next()) edges.push_back(explorer.Current());
+                    const int edgeCount = static_cast<int>(edges.size());
+                    if (edgeCount < 2) return nullptr;
+                    const int cornerCount = BRep_Tool::IsClosed(*input) ? edgeCount : edgeCount - 1;
+                    std::vector<TopoDS_Edge> cornerEdges(static_cast<size_t>(cornerCount));
+                    std::vector<unsigned char> changed(static_cast<size_t>(cornerCount), 0);
+                    for (int corner = 0; corner < cornerCount; ++corner) {
+                      const int publicIndex = corner + 1;
+                      bool selected = includeAll;
+                      for (int i = 0; i < includedCount; ++i) {
+                        if (included[i] == publicIndex) { selected = true; break; }
+                      }
+                      if (!includeAll && !selected) continue;
+                      bool isExcluded = false;
+                      for (int i = 0; i < excludedCount; ++i) {
+                        if (excluded[i] == publicIndex) { isExcluded = true; break; }
+                      }
+                      if (isExcluded) continue;
+                      const int next = (corner + 1) % edgeCount;
+                      TopoDS_Edge edge1 = edges[corner];
+                      TopoDS_Edge edge2 = edges[next];
+                      if (rapids_is_tangent_join(edge1, edge2)) continue;
+                      try {
+                        TopoDS_Edge cornerEdge;
+                        if (op == 0) {
+                          ChFi2d_ChamferAPI chamfer(edge1, edge2);
+                          if (chamfer.Perform()) cornerEdge = chamfer.Result(edge1, edge2, radius, radius);
+                        } else if (op == 1) {
+                          ChFi2d_FilletAPI fillet(edge1, edge2, gp_Pln(gp::XOY()));
+                          if (fillet.Perform(radius)) {
+                            Standard_Real first = 0.0, last = 0.0;
+                            Handle(Geom_Curve) curve = BRep_Tool::Curve(edge1, first, last);
+                            if (!curve.IsNull() && fillet.NbResults(curve->Value(last)) > 0)
+                              cornerEdge = fillet.Result(curve->Value(last), edge1, edge2);
+                          }
+                        }
+                        if (!cornerEdge.IsNull()) {
+                          edges[corner] = edge1;
+                          edges[next] = edge2;
+                          cornerEdges[corner] = cornerEdge;
+                          changed[corner] = 1;
+                        }
+                      } catch (Standard_Failure const&) {}
+                    }
+                    BRepBuilderAPI_MakeWire wireBuilder;
+                    for (int index = 0; index < edgeCount; ++index) {
+                      wireBuilder.Add(edges[index]);
+                      if (index < cornerCount && changed[index] != 0) wireBuilder.Add(cornerEdges[index]);
+                    }
+                    if (!wireBuilder.IsDone()) return nullptr;
+                    return new TopoDS_Wire(wireBuilder.Wire());
+                  } catch (Standard_Failure const&) { return nullptr;
+                  } catch (...) { return nullptr; }
+                }|]
+   in propagatePathEdgeColors leftColor input output
 
 -- | like 'chamferPath' with a choice of how the edge colors are propagated
 chamferPathWithColor :: OpC -> Double -> Path -> Path

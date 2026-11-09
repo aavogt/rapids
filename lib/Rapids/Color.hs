@@ -77,6 +77,7 @@ module Rapids.Color
     leftColor,
     CTree (..),
     chamferSolidWithColors,
+    chamferSolidWithColorsByIndex,
     filletSolidWithColors,
     filletSolidWithColorsByIndex,
     Note,
@@ -743,6 +744,78 @@ chamferSolidWithColors distance source = unsafePerformIO do
   }|]
   result <- readIORef resultRef
   maybe (error "chamferSolidWithColors: chamfer did not return a shape") pure result
+
+-- | Chamfer selected 1-based edge indices in each solid component. Negative-only
+-- indices exclude those edges; positive indices select only those edges.
+chamferSolidWithColorsByIndex :: CDouble -> [Int] -> Solid -> Solid
+chamferSolidWithColorsByIndex distance indices source =
+  let included = [fromIntegral index :: CLLong | index <- indices, index > 0]
+      excluded =
+        [ fromInteger magnitude :: CLLong
+          | index <- indices,
+            index < 0,
+            let magnitude = negate (toInteger index),
+            magnitude <= toInteger (maxBound :: CLLong)
+        ]
+      includeAll = if null included then 1 else 0 :: CInt
+      includedCount = fromIntegral (length included) :: CInt
+      excludedCount = fromIntegral (length excluded) :: CInt
+   in unsafePerformIO do
+        resultRef <- newIORef Nothing
+        let kFun = curry $ \(resultPtr, historyPtr) -> do
+              let result = ownSolid (pure (castPtr resultPtr))
+              propagateColors historyPtr [source]
+              writeIORef resultRef (Just result)
+        liftIO $
+          withArray included $ \includedPtr ->
+            withArray excluded $ \excludedPtr ->
+              [Cpp.block| void {
+              TopoDS_Shape* input = $solid:source;
+              if (input == nullptr || input->IsNull()) {
+                TopoDS_Shape* output = new TopoDS_Shape();
+                $fun:(void (*kFun)(void*, void*))(output, nullptr);
+                return;
+              }
+
+              const long long* included = (const long long*)$(long long* includedPtr);
+              const long long* excluded = (const long long*)$(long long* excludedPtr);
+              const int includedCount = $(int includedCount);
+              const int excludedCount = $(int excludedCount);
+              const bool includeAll = $(int includeAll) != 0;
+              BRepFilletAPI_MakeChamfer chamfer(*input);
+              int selectedCount = 0;
+              for (TopExp_Explorer solids(*input, TopAbs_SOLID);
+                   solids.More(); solids.Next()) {
+                TopTools_IndexedMapOfShape edges;
+                TopExp::MapShapes(solids.Current(), TopAbs_EDGE, edges);
+                for (int edgeIndex = 1; edgeIndex <= edges.Extent(); ++edgeIndex) {
+                  bool selected = includeAll;
+                  for (int i = 0; i < includedCount; ++i) {
+                    if (included[i] == edgeIndex) { selected = true; break; }
+                  }
+                  if (!includeAll && !selected) continue;
+                  bool isExcluded = false;
+                  for (int i = 0; i < excludedCount; ++i) {
+                    if (excluded[i] == edgeIndex) { isExcluded = true; break; }
+                  }
+                  if (!isExcluded) {
+                    chamfer.Add($(double distance), TopoDS::Edge(edges(edgeIndex)));
+                    ++selectedCount;
+                  }
+                }
+              }
+              if (selectedCount == 0) {
+                $fun:(void (*kFun)(void*, void*))(new TopoDS_Shape(*input), nullptr);
+                return;
+              }
+              TopoDS_Shape* output = new TopoDS_Shape(chamfer.Shape());
+              TopTools_ListOfShape arguments;
+              arguments.Append(*input);
+              Handle(BRepTools_History) history = new BRepTools_History(arguments, chamfer);
+              $fun:(void (*kFun)(void*, void*))(output, history.get());
+            }|]
+        result <- readIORef resultRef
+        maybe (error "chamferSolidWithColorsByIndex: chamfer did not return a shape") pure result
 
 -- | Fillet a solid while retaining OCCT's source-to-result face history.
 filletSolidWithColors :: CDouble -> Solid -> Solid

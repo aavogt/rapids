@@ -9,7 +9,10 @@ Wrapper for [joe-warren/opencascade-hs/waterfall-cad](https://github.com/joe-war
     - `pad v3 <taperFrac>`
   - `offset amount <join> <openfaces> solid|shape|path|path2d`
     - `join :: CInt` is 0,1,2 [GeomAbs_JoinType ](https://occt3d.com/dev/doc/refman/html/_geom_abs___join_type_8hxx.html)
-    - `openfaces :: [CInt]` 1-based indices of faces to remove ([freecad's thickness](https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Part_Thickness.md)). TODO interpret it as `openedges` for `shape|path|path2d` and adapt colorQuery.
+    - `openfaces :: [CInt]` ±1-based indexes of faces like ([freecad's thickness](https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/Part_Thickness.md)). TODO interpret it as `openedges` for `shape|path|path2d` and adapt colorQuery.
+  - `fillet amount <indexes> solid|shape|path|path2d`; `chamfer` accepts the same form.
+    - Solid indexes are 1-based edges, applied separately to each solid component. Path and Path2D indexes are 1-based corners in traversal order; Shape applies the same indexes separately to each component path.
+    - Positive indexes select only those entries; negative-only indexes exclude their absolute values. With both signs, select positives minus exclusions. Empty indexes select all; zero and out-of-range indexes are ignored.
   - `sweep path shape`
   - `sweepRuled (\shapeVertex -> path) shape`
   - `revolution <radians> shape`
