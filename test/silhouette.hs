@@ -1,4 +1,7 @@
-import Rapids
+{-# LANGUAGE TemplateHaskell #-}
+import Common
+
+$(writeAction)
 
 drill :: Double -> Solid
 drill z = scale 2 centeredCube - translate ez (-1) (scale 1 z unitCylinder)
@@ -12,4 +15,4 @@ closed2 = pad 1 $ silhouette $ drill 1
 main = do
   print (volume hole, 4 - pi)
   print (volume closed2, volume closed, 4)
-  writeSTEP "silhouette.step" hole
+  writeModel hole

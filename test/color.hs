@@ -1,8 +1,10 @@
 {-# LANGUAGE TemplateHaskell #-}
-import Rapids
+import Common
 import Data.Map (restrictKeys)
 import qualified Data.Set as Set
 import Data.IORef
+
+$(writeAction)
 
 redCube = $red unitCube
 
@@ -15,3 +17,4 @@ main = do
   -- silhouette, revolution, offset, sweep, sweepRuled, loft2, fillet,chamfer,
   -- Rapids.Statistics.areasColor :: Solid -> [(Note, Double)]
   -- volumeColor is too hard
+  writeModel p

@@ -123,8 +123,8 @@ up = 4
 
 
 ## testing
-
 ```
-cd test && make
-cd test && cabal run statistics
+hpack && cabal build && ghcid -r a.hs
+hpack && cabal build && make -Ctest
+```
 ```

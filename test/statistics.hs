@@ -1,5 +1,7 @@
-import Rapids
-import Solids
+{-# LANGUAGE TemplateHaskell #-}
+import Common
+
+$(writeAction)
 
 main = do
   print (volume bowtie)
@@ -10,4 +12,5 @@ main = do
   print (momentOfInertiaMatrix (translate ex 10 unitCylinder))
   print (principalMomentsOfInertia (translate ex 10 unitCylinder))
   print (axisAlignedBoundingBox (offset 2 bowtie))
+  writeModel bowtie
 

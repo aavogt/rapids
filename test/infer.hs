@@ -1,7 +1,7 @@
-{-# LANGUAGE FlexibleContexts #-}
-import Rapids
+{-# LANGUAGE FlexibleContexts, TemplateHaskell #-}
+import Common
 
-main = return ()
+$(write [| unitCube |])
 
 sectionPaths = map toPath . shapePaths . section
 

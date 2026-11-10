@@ -1,10 +1,12 @@
-{-# LANGUAGE QuasiQuotes #-}
-import Rapids
+{-# LANGUAGE QuasiQuotes, TemplateHaskell #-}
+import Common
 import Rapids.SVG
 
+$(writeAction)
+
 main = do
-  writeSTEP "sweepRuled.step" s
   print (volume s)
+  writeModel s
 
 s = sweepRuled (\(V2 x y) -> foldMap (translate x y 0 . rotate ez (atan2 y x) ex (pi/2) . toPath)
       [svg|

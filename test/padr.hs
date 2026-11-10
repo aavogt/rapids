@@ -1,13 +1,15 @@
-
+{-# LANGUAGE TemplateHaskell #-}
 import Control.Monad (unless)
-import Rapids
+import Common
+
+$(writeAction)
 
 main = do
   let actualVolume = volume solid
   print actualVolume
   unless (abs (actualVolume - 5.944752261871913) < 1e-3) $
     error "sweepRuled padr must include both end faces"
-  writeSTEP "padr.step" solid
+  writeModel solid
 
 solid = padr 1 $ translate2D 1 0 $ rectangle 2 3
 padr height sketch =

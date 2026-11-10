@@ -1,11 +1,11 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE FlexibleContexts #-}
-import Rapids
+{-# LANGUAGE BlockArguments, FlexibleContexts, TemplateHaskell #-}
+import Common
+
+$(writesAction)
 
 main = do
-  return ()
   print (volume $ pad 2 roundedRectangle1, volume $ pad 2 $ roundedRectangle)
-
+  writeModels [pad 2 roundedRectangle1, pad 2 roundedRectangle]
 roundedRectangle = execPathState0 do
   r 100
   u 100

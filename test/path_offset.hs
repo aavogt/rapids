@@ -1,4 +1,7 @@
-import Rapids
+{-# LANGUAGE TemplateHaskell #-}
+import Common
+
+$(writeAction)
 
 main = do
   let actual = volume ySolid
@@ -7,7 +10,7 @@ main = do
   if actual <= 0 || expected <= 0 || abs (actual - expected) > 0.01 * max actual expected
     then error "single-edge round-cap and two-edge offsets differ by more than 1%"
     else pure ()
-  writeSTEP "path_offset.step" ySolid
+  writeModel ySolid
 
 
 ySolid :: Solid
