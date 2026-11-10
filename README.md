@@ -124,7 +124,7 @@ up = 4
 
 ## testing
 ```
-hpack && cabal build && ghcid -r a.hs
-hpack && cabal build && make -Ctest
+hpack && cabal build all && ghcid -r test/fillet.hs
+hpack && cabal build all && make -Ctest
 ```
 ```

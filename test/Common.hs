@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments, TemplateHaskell #-}
-module Common (module Rapids, module Common) where
+module Common (module Rapids, module Rapids.SVG, module Common) where
 import Rapids
+import Rapids.SVG
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 import System.Directory
@@ -25,18 +26,28 @@ d y = u (-y)
 
 stripSuffix suff x = reverse <$> stripPrefix (reverse suff) (reverse x)
 
+-- | "test" or ""
+loc :: ExpQ
+loc = do
+  Loc {loc_filename} <- location
+  lift $ reverse $ dropWhile (/='/') $ reverse $ loc_filename
+
+-- | "test/foo.step" or "foo.step"
 stepName :: ExpQ
 stepName = do
   Loc {loc_filename} <- location
   Just sourceNameBase <- return $ stripSuffix ".hs" loc_filename
   lift $ sourceNameBase ++ ".step"
 
+-- | `$stepNameI 2` is "test/foo02.step"
 stepNameI :: ExpQ
 stepNameI = do
   Loc {loc_filename} <- location
   Just sourceNameBase <- return $ stripSuffix ".hs" loc_filename
   [| \i -> $(lift sourceNameBase) ++ printf "%02d" (i :: Int)  ++ ".step" |]
 
+-- | $writeAction defines writeModel :: Solid -> IO ()
+-- which saves to $stepName
 writeAction :: Q [Dec]
 writeAction = [d|
   writeModel solid = do
