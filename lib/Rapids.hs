@@ -227,7 +227,7 @@ instance (a ~ a', i ~ Int, FilletChamferByIndex a) => FilletChamfer ([i] -> a ->
   fillet = filletByIndex
   chamfer = chamferByIndex
 
-instance (a ~ a', FilletChamferByIndex a) => FilletChamfer (a -> a') where
+instance {-# INCOHERENT #-} (a ~ a', FilletChamferByIndex a) => FilletChamfer (a -> a') where
   fillet r = filletByIndex r []
   chamfer r = chamferByIndex r []
 
