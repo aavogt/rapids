@@ -12,7 +12,9 @@ import Rapids.Num ()
 
 Cpp.context occtContext
 Cpp.include "<BRepAlgoAPI_Cut.hxx>"
+Cpp.include "<BOPAlgo_Operation.hxx>"
 Cpp.include "<BRepBuilderAPI_MakeFace.hxx>"
+Cpp.include "<BRepBuilderAPI_Transform.hxx>"
 Cpp.include "<BRepExtrema_DistShapeShape.hxx>"
 Cpp.include "<BRepPrimAPI_MakePrism.hxx>"
 Cpp.include "<BRepTools.hxx>"
@@ -26,14 +28,16 @@ Cpp.include "<TopoDS.hxx>"
 Cpp.include "<TopoDS_Compound.hxx>"
 Cpp.include "<TopoDS_Face.hxx>"
 Cpp.include "<TopoDS_Shape.hxx>"
+Cpp.include "<TopTools_ListOfShape.hxx>"
 Cpp.include "<TopoDS_Wire.hxx>"
 Cpp.include "<gp_Vec.hxx>"
 Cpp.include "<limits>"
+Cpp.include "<gp_Trsf.hxx>"
 Cpp.include "<Standard_Failure.hxx>"
 
 -- | Extrude a profile along @direction@ until it reaches @target@.
--- The returned solid is the portion of the extrusion touching the profile;
--- inner wires on target faces are also swept back through the pad and removed.
+-- The pad extends 1e-6 along @direction@ into the target so later unions do
+-- not depend on coincident-boundary Boolean handling.
 padToV :: ToShape s => V3 Double -> s -> Solid -> Solid
 
 -- | Add the target solid to the pad produced by 'padToV'.
@@ -57,7 +61,26 @@ padToV direction profile target = ownSolid [Cpp.block| TopoDS_Shape* {
     if (!prism.IsDone()) {
       return emptyShape();
     }
-    BRepAlgoAPI_Cut targetCut(prism.Shape(), *targetShape);
+    // Keep a small overlap so later fuses do not depend on coincident faces.
+    gp_Vec targetOverrun(*directionPtr);
+    targetOverrun *= 1.0e-6;
+    gp_Trsf targetPlacement;
+    targetPlacement.SetTranslation(targetOverrun);
+    BRepBuilderAPI_Transform targetCopy(
+        *targetShape, targetPlacement, Standard_False);
+    if (!targetCopy.IsDone()) {
+      return emptyShape();
+    }
+    TopTools_ListOfShape arguments;
+    arguments.Append(prism.Shape());
+    TopTools_ListOfShape tools;
+    tools.Append(targetCopy.Shape());
+    BRepAlgoAPI_Cut targetCut;
+    targetCut.SetOperation(BOPAlgo_CUT);
+    targetCut.SetArguments(arguments);
+    targetCut.SetTools(tools);
+    targetCut.SetNonDestructive(Standard_True);
+    targetCut.Build();
     if (!targetCut.IsDone()) {
       return emptyShape();
     }
