@@ -14,6 +14,37 @@ parsePathCommands :: String -- ^ https://developer.mozilla.org/en-US/docs/Web/SV
 
 parse [svg path commands](https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Attribute/d#path_commands) into [svg-tree](https://hackage-content.haskell.org/package/svg-tree-0.6.2.4/docs/Graphics-Svg-Types.html#t:PathCommand)
 
+## Updating Expressions
+
+`parsePathCommandsSupplementCmd` works with `renderCmdsWithDiff` to update expressions:
+
+```haskell
+ghci> import Text.Show.Pretty; import Control.Lens; import SvgTreeAntiquote
+ghci> let cm = let x = 1; y = 3 in $(parsePathCommandsSupplementCmd "M x,y h 2 v 2 H x Z")
+ghci> pPrint cm
+[ ( CM [ MArg (EVar (Ident "x") []) (EVar (Ident "y") []) ]
+  , Right (MoveTo OriginAbsolute [ V2 1.0 3.0 ])
+  )
+, ( Ch [ HArg (EInt 2) ]
+  , Right (HorizontalTo OriginRelative [ 2.0 ])
+  )
+, ( Cv [ HArg (EInt 2) ]
+  , Right (VerticalTo OriginRelative [ 2.0 ])
+  )
+, ( CH [ HArg (EVar (Ident "x") []) ]
+  , Right (HorizontalTo OriginAbsolute [ 1.0 ])
+  )
+, ( CZ , Right EndPath )
+]
+ghci> let edited = cm <&> snd <&> _Right . _HorizontalTo . _2 . traversed *~ 3
+ghci> renderCmdsWithDiff cm edited & fromJust & pPrint
+M x,y
+h 6 -- currently 2+4 constant folding isn't right yet
+v 2
+H x+2
+z
+```
+
 ## Extensions
 
 As an extension, parsePathCommandsSupplement/pathOutline parse and interpret `wWjJ{}[]`-commands. These represent:

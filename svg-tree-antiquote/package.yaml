@@ -10,6 +10,11 @@ default-extensions:
   - NoMonomorphismRestriction
   - StandaloneDeriving
   - DeriveLift
+  - FlexibleInstances
+  - MultiParamTypeClasses
+  - RankNTypes
+  - DeriveGeneric
+
 
 dependencies:
   - base
@@ -17,6 +22,7 @@ dependencies:
   - svg-tree
   - template-haskell
   - linear
+  - lens
 
 library:
   source-dirs:

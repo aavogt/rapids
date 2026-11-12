@@ -8,7 +8,7 @@ import Data.List (foldl')
 import Debug.Trace (trace)
 import Graphics.Svg.Types (Coord, Origin (..), PathCommand (..), RPoint)
 import Linear (V2 (..), (*^), (^*), (^/))
-import SvgTreeAntiquote (Supplement (..), WArg (..))
+import SvgTreeAntiquote (Supplement (..), WArgV (..))
 
 -- | Turn a path with @w@ and @W@ commands into a closed stroke outline.
 --
@@ -207,9 +207,9 @@ collectWidths input =
             WidthGroup scope index anchor (previousValues ++ values) : rest
       _ -> WidthGroup scope index anchor values : groups
 
-widthPair :: WArg -> WidthPair
-widthPair (W1 radius) = (radius, radius)
-widthPair (W2 left right) = (left, right)
+widthPair :: WArgV -> WidthPair
+widthPair (W1V radius) = (radius, radius)
+widthPair (W2V left right) = (left, right)
 
 addPair :: WidthPair -> WidthPair -> WidthPair
 addPair (left, right) (deltaLeft, deltaRight) =

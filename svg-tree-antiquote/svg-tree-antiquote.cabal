@@ -25,9 +25,14 @@ library
       NoMonomorphismRestriction
       StandaloneDeriving
       DeriveLift
+      FlexibleInstances
+      MultiParamTypeClasses
+      RankNTypes
+      DeriveGeneric
   build-depends:
       BNFC-meta
     , base
+    , lens
     , linear
     , svg-tree
     , template-haskell
