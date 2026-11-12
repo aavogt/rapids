@@ -41,7 +41,7 @@ ghci> renderCmdsWithDiff cm edited & fromJust & pPrint
 M x,y
 h 6
 v 2
-H x+2
+H x+2 -- 3*x would be better, but GUI editing will only be additive
 z
 ```
 
