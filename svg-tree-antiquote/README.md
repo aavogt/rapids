@@ -39,7 +39,7 @@ ghci> pPrint cm
 ghci> let edited = cm <&> snd <&> _Right . _HorizontalTo . _2 . traversed *~ 3
 ghci> renderCmdsWithDiff cm edited & fromJust & pPrint
 M x,y
-h 6 -- currently 2+4 constant folding isn't right yet
+h 6
 v 2
 H x+2
 z

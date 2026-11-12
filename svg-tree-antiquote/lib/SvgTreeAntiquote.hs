@@ -501,6 +501,8 @@ addDelta delta (EOp expression EPlus rhs)
 addDelta delta (EOp expression EMinus rhs)
   | Just amount <- numericExpressionValue rhs = addDelta (delta - amount) expression
 addDelta delta expression
+  | Just amount <- numericExpressionValue expression = numberExpression (delta + amount)
+addDelta delta expression
   | delta > 0 = EOp expression EPlus (numberExpression delta)
   | otherwise = EOp expression EMinus (numberExpression (abs delta))
 
