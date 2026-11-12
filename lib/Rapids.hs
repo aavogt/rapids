@@ -1,4 +1,5 @@
 {- HLINT ignore "Eta reduce" -}
+{-# OPTIONS_GHC -Wno-duplicate-exports #-}
 
 -- | <https://github.com/aavogt/rapids rapids> simplifies <https://hackage.haskell.org/package/waterfall-cad waterfall-cad> expressions
 --
